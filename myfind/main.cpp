@@ -3,8 +3,15 @@
 #include <iostream>
 #include <list>
 #include <filesystem>
+#include <iterator>
+#include <algorithm>
+#include <vector>
 
 namespace fs = std::filesystem;
+
+typedef std::function<int(std::string, std::string)> Comparator;
+
+void iterateDirectory(const fs::path& path, std::string filename, bool recursive, Comparator comparator);
 
 int main(int argc, char *argv[]) {
     int c;
@@ -52,10 +59,19 @@ int main(int argc, char *argv[]) {
         exit(3);
     }
 
-    InputIterator 
-    for (const auto& file : make_directory_range(optionCounterR, path)) {
-        if (std::find(std::begin(filenames), std::end(filenames), file.path().filename()) != end(filenames)) {
+    for (const auto& filename : filenames) {
+        // TODO: start process
+        iterateDirectory(path, filename, optionCounterR, comparator);
+    }
+}
+
+void iterateDirectory(const fs::path& path, std::string filename, bool recursive, Comparator comparator) {
+    for (const auto& file : fs::directory_iterator(path)) {
+        // TODO: case insensitive search if i flag is used
+        if (comparator(file.path().filename(), filename) == 0) {
             std::cout << "File " << file.path().filename() << " found at " << file.path() << std::endl;
+        } else if (recursive && fs::is_directory(file)) {
+            iterateDirectory(file.path(), filename, recursive, comparator);
         }
     }
 }
