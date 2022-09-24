@@ -9,9 +9,9 @@
 
 namespace fs = std::filesystem;
 
-typedef std::function<int(std::string, std::string)> Comparator;
+typedef std::function<std::string(std::string)> stringMapper;
 
-void iterateDirectory(const fs::path& path, std::string filename, bool recursive, Comparator comparator);
+void iterateDirectory(const fs::path& path, std::string filename, bool recursive, stringMapper stringMapper);
 
 int main(int argc, char *argv[]) {
     int c;
@@ -59,19 +59,24 @@ int main(int argc, char *argv[]) {
         exit(3);
     }
 
+    stringMapper stringMapper = optionCounterI ?
+            [] (std::string s) { std::transform(s.begin(), s.end(), s.begin(), ::tolower); return s; } :
+            [] (std::string s) { return s; };
+
     for (const auto& filename : filenames) {
         // TODO: start process
-        iterateDirectory(path, filename, optionCounterR, comparator);
+        iterateDirectory(path, filename, optionCounterR, stringMapper);
     }
 }
 
-void iterateDirectory(const fs::path& path, std::string filename, bool recursive, Comparator comparator) {
-    for (const auto& file : fs::directory_iterator(path)) {
-        // TODO: case insensitive search if i flag is used
-        if (comparator(file.path().filename(), filename) == 0) {
+void iterateDirectory(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
+    for (const auto& file : fs::directory_iterator(searchPath)) {
+        const fs::path& filePath = file.path();
+
+        if (stringMapper(filePath.filename()).compare(stringMapper(filename)) == 0) {
             std::cout << "File " << file.path().filename() << " found at " << file.path() << std::endl;
         } else if (recursive && fs::is_directory(file)) {
-            iterateDirectory(file.path(), filename, recursive, comparator);
+            iterateDirectory(file.path(), filename, recursive, stringMapper);
         }
     }
 }
