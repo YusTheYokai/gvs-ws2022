@@ -1,12 +1,11 @@
-#include <unistd.h>
-#include <sys/types.h>
 #include <string>
 #include <iostream>
 #include <list>
 #include <filesystem>
-#include <iterator>
 #include <algorithm>
-#include <vector>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h> 
 
 namespace fs = std::filesystem;
 
@@ -67,15 +66,18 @@ int main(int argc, char *argv[]) {
     int pid = getpid();
 
     for (const auto& filename : filenames) {
-        // TODO: start process
-        // std::cout << "DEBUG: " << getppid() << std::endl;
-        if (pid == getpid()) {
-            pid_t childpid = fork();
-            if (childpid == 0) {
-                iterateDirectory(path, filename, optionCounterR, stringMapper);
-            }
+        if (pid == getpid() && fork() == 0) {
+            iterateDirectory(path, filename, optionCounterR, stringMapper);
         }
     }
+
+    // unnötig?
+    // pid_t childpid;
+    // while ((childpid = waitpid(-1, NULL, WNOHANG))) {
+    //     if (childpid == -1 && errno != EINTR) {
+    //         break;
+    //     }
+    // }
 }
 
 void iterateDirectory(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
