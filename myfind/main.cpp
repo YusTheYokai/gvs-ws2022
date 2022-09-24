@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <sys/types.h>
 #include <string>
 #include <iostream>
 #include <list>
@@ -63,9 +64,17 @@ int main(int argc, char *argv[]) {
             [] (std::string s) { std::transform(s.begin(), s.end(), s.begin(), ::tolower); return s; } :
             [] (std::string s) { return s; };
 
+    int pid = getpid();
+
     for (const auto& filename : filenames) {
         // TODO: start process
-        iterateDirectory(path, filename, optionCounterR, stringMapper);
+        // std::cout << "DEBUG: " << getppid() << std::endl;
+        if (pid == getpid()) {
+            pid_t childpid = fork();
+            if (childpid == 0) {
+                iterateDirectory(path, filename, optionCounterR, stringMapper);
+            }
+        }
     }
 }
 
@@ -74,7 +83,7 @@ void iterateDirectory(const fs::path& searchPath, std::string filename, bool rec
         const fs::path& filePath = file.path();
 
         if (stringMapper(filePath.filename()).compare(stringMapper(filename)) == 0) {
-            std::cout << "File " << file.path().filename() << " found at " << file.path() << std::endl;
+            std::cout << getpid() << ": " << file.path().filename().generic_string() << ": " << file.path().generic_string() << std::endl;
         } else if (recursive && fs::is_directory(file)) {
             iterateDirectory(file.path(), filename, recursive, stringMapper);
         }
