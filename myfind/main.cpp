@@ -84,8 +84,8 @@ int main(int argc, char *argv[]) {
     for (const auto& filename : filenames) {
         if (pid == getpid() && fork() == 0) {
             iterateDirectory(path, filename, optionCounterR, stringMapper);
+            return 0;
         }
-        sleep(30);
     }
 }
 
