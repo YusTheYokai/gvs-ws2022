@@ -1,4 +1,4 @@
-dfault: all
+default: all
 
 all: clean build
 
