@@ -5,7 +5,13 @@
 #include <algorithm>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
 #include <sys/wait.h> 
+
+#define KEY 22376221
+#define PERM 0660
+#define MAX_DATA 255
 
 namespace fs = std::filesystem;
 
@@ -25,7 +31,18 @@ void signalHandler(int sig);
  */
 void iterateDirectory(const fs::path& path, std::string filename, bool recursive, stringMapper stringMapper);
 
-int main(int argc, char *argv[]) {
+/**
+ * Send message, that file has been found, to message queue.
+ * @param filePath path of the found file
+ */
+void sendFileFoundMessage(const fs::path& filePath);
+
+typedef struct {
+	long mType;
+	char mText[MAX_DATA];
+} message_t;
+
+int main(int argc, char* argv[]) {
     // set signal handler for zombie processes
     signal(SIGCHLD, signalHandler);
 
@@ -81,12 +98,29 @@ int main(int argc, char *argv[]) {
 
     int pid = getpid();
 
+    int msgid;
+    if ((msgid = msgget(KEY, PERM | IPC_CREAT | IPC_EXCL)) == -1) {
+        std::cerr << "Was not able to create message queue" << std::endl;
+        exit(4);
+    }
+
     for (const auto& filename : filenames) {
         if (pid == getpid() && fork() == 0) {
             iterateDirectory(path, filename, optionCounterR, stringMapper);
             return 0;
         }
     }
+
+    message_t message;
+    while (1) {
+        if (msgrcv(msgid, &message, sizeof(message) - sizeof(long), 0 , 0) == -1) {
+            std::cerr << "Could not recieve message" << std::endl;
+            exit(5);
+        }
+        std::cout << message.mText << std::endl;
+    }
+
+    return 0;
 }
 
 void signalHandler(int sig) {
@@ -104,10 +138,29 @@ void iterateDirectory(const fs::path& searchPath, std::string filename, bool rec
 
         // compare filenames after string mapper has been applied
         if (stringMapper(filePath.filename()).compare(stringMapper(filename)) == 0) {
-            std::cout << getpid() << ": " << file.path().filename().generic_string() << ": " << file.path().generic_string() << std::endl;
+            sendFileFoundMessage(filePath);
             return;
         } else if (recursive && fs::is_directory(file)) {
             iterateDirectory(file.path(), filename, recursive, stringMapper);
         }
+    }
+}
+
+void sendFileFoundMessage(const fs::path& filePath) {
+    int pid = getpid();
+    int msgid;
+
+    if ((msgid = msgget(KEY, PERM)) == -1) {
+        std::cerr << pid << ": Could not access message queue" << std::endl;
+        exit(10);
+    }
+
+    message_t message = { .mType = 1 };
+    std::string text = pid + ": " + filePath.filename().generic_string() + ": " + filePath.generic_string();
+    text.copy(message.mText, MAX_DATA);
+
+    if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1) {
+        std::cerr << pid << ": Could not send message" << std::endl;
+        exit(11);
     }
 }
