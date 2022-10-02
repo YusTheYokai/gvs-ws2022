@@ -6,4 +6,4 @@ clean:
 	rm -f myfind
 
 build: main.cpp
-	g++ main.cpp -o myfind -std=c++2a -Wall
+	g++ main.cpp -o myfind -std=c++17 -Wall
