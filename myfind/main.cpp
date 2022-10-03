@@ -17,6 +17,12 @@ namespace fs = std::filesystem;
 
 typedef std::function<std::string(std::string)> stringMapper;
 
+typedef struct {
+	long mType;
+    bool found;
+	char mText[MAX_DATA];
+} message_t;
+
 /**
  * Signal handler to collect processes once they have (not) found the file.
  */
@@ -50,17 +56,20 @@ void iterateDirectory(const fs::path& path, std::string filename, bool recursive
  */
 void sendFileFoundMessage(const fs::path& filePath);
 
-typedef struct {
-	long mType;
-	char mText[MAX_DATA];
-} message_t;
+void sendFileNotFoundMessage();
+
+void sendMessage(int pid, message_t message);
+
+void logError(std::string message);
+
+void logDebug(std::string message);
 
 /**
  * 
  */
 int main(int argc, char* argv[]) {
     // set signal handler for zombie processes
-    signal(SIGCHLD, signalHandler);
+    // signal(SIGCHLD, signalHandler);
 
     unsigned short optionCounterR = 0;
     unsigned short optionCounterI = 0;
@@ -84,19 +93,24 @@ int main(int argc, char* argv[]) {
 
     for (const auto& filename : filenames) {
         if (pid == getpid() && fork() == 0) {
+            logDebug(std::to_string(getpid()) + " is searching for " + filename);
             iterateDirectory(path, filename, optionCounterR, stringMapper);
             return 0;
         }
     }
 
-    message_t message = { .mType = 0 };
-    while (message.mType == 0) {
+    message_t message;
+    int pending = filenames.size();
+    while (pending > 0) {
         if (msgrcv(msgid, &message, sizeof(message) - sizeof(long), 0 , 0) == -1) {
-            // last message recieved
-            break;
+            std::cerr << "Was not able to receive message" << std::endl;
+            exit(5);
         } else {
-            std::cout << message.mText << std::endl;
-            message = { .mType = 0 };
+            std::cout << "Message received" << std::endl;
+            if (message.found) {
+                std::cout << message.mText << std::endl;
+            }
+            pending--;
         }
     }
 
@@ -176,10 +190,28 @@ void iterateDirectory(const fs::path& searchPath, std::string filename, bool rec
             iterateDirectory(file.path(), filename, recursive, stringMapper);
         }
     }
+
+    sendFileNotFoundMessage();
 }
 
 void sendFileFoundMessage(const fs::path& filePath) {
     int pid = getpid();
+
+    message_t message = { .mType = 1, .found = true };
+    std::string text = std::to_string(pid) + ": " + filePath.filename().generic_string() + ": " + filePath.generic_string();
+    text.copy(message.mText, MAX_DATA);
+
+    sendMessage(pid, message);
+}
+
+void sendFileNotFoundMessage() {
+    int pid = getpid();
+
+    message_t message = { .mType = 1, .found = false };
+    sendMessage(pid, message);
+}
+
+void sendMessage(int pid, message_t message) {
     int msgid;
 
     if ((msgid = msgget(KEY, PERM)) == -1) {
@@ -187,12 +219,16 @@ void sendFileFoundMessage(const fs::path& filePath) {
         exit(10);
     }
 
-    message_t message = { .mType = 1 };
-    std::string text = std::to_string(pid) + ": " + filePath.filename().generic_string() + ": " + filePath.generic_string();
-    text.copy(message.mText, MAX_DATA);
-
     if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1) {
         std::cerr << pid << ": Could not send message" << std::endl;
         exit(11);
     }
+}
+
+void logError(std::string message) {
+    std::cerr << "[ERROR] " << message << std::endl;
+}
+
+void logDebug(std::string message) {
+    std::cout << "[DEBUG] " << message << std::endl;
 }
