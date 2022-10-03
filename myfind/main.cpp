@@ -47,8 +47,9 @@ void parseArguments(int argc, char* argv[],
  * @param filename name of the searched file
  * @param recursive boolean whether directories should be iterated throgh recursivly
  * @param stringMapper stringMapper function to adjust strings before comparison
+ * @return true if file was found, false otherwise
  */
-void iterateDirectory(const fs::path& path, std::string filename, bool recursive, stringMapper stringMapper);
+bool iterateDirectory(const fs::path& path, std::string filename, bool recursive, stringMapper stringMapper);
 
 /**
  * Send message, that file has been found, to message queue.
@@ -62,17 +63,16 @@ void sendMessage(int pid, message_t message);
 
 void logError(std::string message);
 
-void logDebug(std::string message);
-
 /**
  * 
  */
 int main(int argc, char* argv[]) {
     // set signal handler for zombie processes
-    // signal(SIGCHLD, signalHandler);
+    signal(SIGCHLD, signalHandler);
 
     unsigned short optionCounterR = 0;
     unsigned short optionCounterI = 0;
+
     std::string path;
     std::list<std::string> filenames;
 
@@ -93,8 +93,9 @@ int main(int argc, char* argv[]) {
 
     for (const auto& filename : filenames) {
         if (pid == getpid() && fork() == 0) {
-            logDebug(std::to_string(getpid()) + " is searching for " + filename);
-            iterateDirectory(path, filename, optionCounterR, stringMapper);
+            if (!iterateDirectory(path, filename, optionCounterR, stringMapper)) {
+                sendFileNotFoundMessage();
+            }
             return 0;
         }
     }
@@ -106,7 +107,6 @@ int main(int argc, char* argv[]) {
             std::cerr << "Was not able to receive message" << std::endl;
             exit(5);
         } else {
-            std::cout << "Message received" << std::endl;
             if (message.found) {
                 std::cout << message.mText << std::endl;
             }
@@ -117,8 +117,6 @@ int main(int argc, char* argv[]) {
     if (msgctl(msgid, IPC_RMID, NULL) == -1) {
         std::cerr << "Could not remove message queue" << std::endl;
         exit(6);
-    } else {
-        std::cout << "Message queue removed" << std::endl;
     }
 
     return 0;
@@ -140,15 +138,15 @@ void parseArguments(int argc, char* argv[],
 
     while ((c = getopt(argc, argv, "Ri")) != EOF) {
         switch (c) {
-        case '?':
-            std::cerr << "Unknown option" << std::endl;
-            exit(1);
-        case 'R':
-            optionCounterR++;
-            break;
-        case 'i':
-            optionCounterI++;
-            break;
+            case '?':
+                std::cerr << "Unknown option" << std::endl;
+                exit(1);
+            case 'R':
+                optionCounterR++;
+                break;
+            case 'i':
+                optionCounterI++;
+                break;
         }
     }
 
@@ -178,20 +176,20 @@ void parseArguments(int argc, char* argv[],
     }
 }
 
-void iterateDirectory(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
+bool iterateDirectory(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
     for (const auto& file : fs::directory_iterator(searchPath)) {
         const fs::path& filePath = file.path();
 
         // compare filenames after string mapper has been applied
         if (stringMapper(filePath.filename()).compare(stringMapper(filename)) == 0) {
             sendFileFoundMessage(filePath);
-            return;
+            return true;
         } else if (recursive && fs::is_directory(file)) {
             iterateDirectory(file.path(), filename, recursive, stringMapper);
         }
     }
 
-    sendFileNotFoundMessage();
+    return false;
 }
 
 void sendFileFoundMessage(const fs::path& filePath) {
@@ -227,8 +225,4 @@ void sendMessage(int pid, message_t message) {
 
 void logError(std::string message) {
     std::cerr << "[ERROR] " << message << std::endl;
-}
-
-void logDebug(std::string message) {
-    std::cout << "[DEBUG] " << message << std::endl;
 }
