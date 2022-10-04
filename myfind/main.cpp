@@ -42,34 +42,50 @@ void parseArguments(int argc, char* argv[],
                     std::string& path, std::list<std::string>& filenames);
 
 /**
+ * Searches for a file. If the file is found, the process sends a message.
+ * @param searchPath searchpath
+ * @param filename name of the searched file
+ * @param recursive boolean whether directories should be iterated throgh recursivly
+ * @param stringMapper stringMapper function to adjust strings before comparison
+ */
+void searchFile(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper);
+
+/**
  * Iterate over directory with certain path searching for filename.
- * @param path searchpath
+ * @param found path to the found file
+ * @param searchPath searchpath
  * @param filename name of the searched file
  * @param recursive boolean whether directories should be iterated throgh recursivly
  * @param stringMapper stringMapper function to adjust strings before comparison
  * @return true if file was found, false otherwise
  */
-bool iterateDirectory(const fs::path& path, std::string filename, bool recursive, stringMapper stringMapper);
+void iterateDirectory(fs::path& found, const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper);
 
 /**
- * Send message, that file has been found, to message queue.
+ * Send message, that file has been found.
  * @param filePath path of the found file
  */
 void sendFileFoundMessage(const fs::path& filePath);
 
+/**
+ * Send message, that file has not been found.
+ */
 void sendFileNotFoundMessage();
 
+/**
+ * Sends a message.
+ * @param pid process id of the sender
+ * @param message message to be sent
+ */
 void sendMessage(int pid, message_t message);
 
-void logError(std::string message);
-
 /**
- * 
+ * Writing into the standard output has been made process safe
+ * by using a message queue.
+ * The child processes searching for the files send a message
+ * to the parent process, which prints the message to the standard output.
  */
 int main(int argc, char* argv[]) {
-    // set signal handler for zombie processes
-    signal(SIGCHLD, signalHandler);
-
     unsigned short optionCounterR = 0;
     unsigned short optionCounterI = 0;
 
@@ -83,19 +99,17 @@ int main(int argc, char* argv[]) {
             [] (std::string s) { std::transform(s.begin(), s.end(), s.begin(), ::tolower); return s; } :
             [] (std::string s) { return s; };
 
-    int pid = getpid();
-
     int msgid;
+    // create message queue
     if ((msgid = msgget(KEY, PERM | IPC_CREAT | IPC_EXCL)) == -1) {
         std::cerr << "Was not able to create message queue" << std::endl;
         exit(4);
     }
 
     for (const auto& filename : filenames) {
-        if (pid == getpid() && fork() == 0) {
-            if (!iterateDirectory(path, filename, optionCounterR, stringMapper)) {
-                sendFileNotFoundMessage();
-            }
+        // create child process for every filename
+        if (fork() == 0) {
+            searchFile(path, filename, optionCounterR, stringMapper);
             return 0;
         }
     }
@@ -110,9 +124,12 @@ int main(int argc, char* argv[]) {
             if (message.found) {
                 std::cout << message.mText << std::endl;
             }
-            pending--;
         }
+        pending--;
     }
+
+    // set signal handler for zombie processes
+    signal(SIGCHLD, signalHandler);
 
     if (msgctl(msgid, IPC_RMID, NULL) == -1) {
         std::cerr << "Could not remove message queue" << std::endl;
@@ -127,7 +144,7 @@ void signalHandler(int sig) {
     int ret;
 
     while ((pid = waitpid(-1, &ret, WNOHANG)) > 0) {
-        std::cout << "Child with pid " << std::to_string(pid) << " collected" << std::endl;
+        // noop
     }
 }
 
@@ -176,20 +193,28 @@ void parseArguments(int argc, char* argv[],
     }
 }
 
-bool iterateDirectory(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
+void searchFile(const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
+    fs::path found = "";
+    iterateDirectory(found, searchPath, filename, recursive, stringMapper);
+    if (found.generic_string().compare("") == 0) {
+        sendFileNotFoundMessage();
+    } else {
+        sendFileFoundMessage(found);
+    }
+}
+
+void iterateDirectory(fs::path& found, const fs::path& searchPath, std::string filename, bool recursive, stringMapper stringMapper) {
     for (const auto& file : fs::directory_iterator(searchPath)) {
         const fs::path& filePath = file.path();
 
         // compare filenames after string mapper has been applied
         if (stringMapper(filePath.filename()).compare(stringMapper(filename)) == 0) {
-            sendFileFoundMessage(filePath);
-            return true;
+            found = filePath;
+            return;
         } else if (recursive && fs::is_directory(file)) {
-            iterateDirectory(file.path(), filename, recursive, stringMapper);
+            iterateDirectory(found, file.path(), filename, recursive, stringMapper);
         }
     }
-
-    return false;
 }
 
 void sendFileFoundMessage(const fs::path& filePath) {
@@ -221,8 +246,4 @@ void sendMessage(int pid, message_t message) {
         std::cerr << pid << ": Could not send message" << std::endl;
         exit(11);
     }
-}
-
-void logError(std::string message) {
-    std::cerr << "[ERROR] " << message << std::endl;
 }
