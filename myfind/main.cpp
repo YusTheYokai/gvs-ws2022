@@ -86,6 +86,9 @@ void sendMessage(int pid, message_t message);
  * to the parent process, which prints the message to the standard output.
  */
 int main(int argc, char* argv[]) {
+    // set signal handler for zombie processes
+    signal(SIGCHLD, signalHandler);
+    
     unsigned short optionCounterR = 0;
     unsigned short optionCounterI = 0;
 
@@ -106,12 +109,22 @@ int main(int argc, char* argv[]) {
         exit(4);
     }
 
+    std::list<pid_t> childPids;
+
     for (const auto& filename : filenames) {
         // create child process for every filename
-        if (fork() == 0) {
+        pid_t pid = fork();
+        if (pid == 0) {
             searchFile(path, filename, optionCounterR, stringMapper);
             return 0;
+        } else {
+            childPids.push_back(pid);
         }
+    }
+
+    // wait for child procceses to finish
+    for (const auto& childPid : childPids) {
+        waitpid(childPid, NULL, 0);
     }
 
     message_t message;
@@ -127,9 +140,6 @@ int main(int argc, char* argv[]) {
         }
         pending--;
     }
-
-    // set signal handler for zombie processes
-    signal(SIGCHLD, signalHandler);
 
     if (msgctl(msgid, IPC_RMID, NULL) == -1) {
         std::cerr << "Could not remove message queue" << std::endl;
