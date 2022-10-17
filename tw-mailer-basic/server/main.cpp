@@ -1,6 +1,6 @@
 #include <iostream>
 
-int main(int argc, char const *argv[])
+int main(int argc, char* argv[])
 {
     // hello world
     std::cout << "Hello World!" << std::endl;
