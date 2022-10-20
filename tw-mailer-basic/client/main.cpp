@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define BUFFER 1024
+
 int main(int argc, char* argv[]) {
     std::string ip;
     int port;
@@ -35,6 +37,8 @@ int main(int argc, char* argv[]) {
     std::cout << "ip: " << ip << std::endl;
     std::cout << "port: " << port << std::endl;
 
+    int size;
+    char buffer[BUFFER];
     struct sockaddr_in address;
 
     int socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -61,11 +65,42 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Available commands:" << std::endl;
 
+    std::cout << " (0) QUIT - logout" << std::endl;
     std::cout << " (1) SEND - send a message to the server" << std::endl;
     std::cout << " (2) LIST - list all of your messages" << std::endl;
     std::cout << " (3) READ - read one of your messages" << std::endl;
     std::cout << " (4) DEL  - remove a message" << std::endl;
-    std::cout << " (5) QUIT - logout" << std::endl;
+
+    do {
+        std::cout << "Please enter a command: ";
+        int selection = 0;
+        std::cin >> selection;
+        // TODO: catch exception
+
+        std::string message;
+        if (selection == 0) {
+            message = "QUIT";
+        } else if (selection == 1) {
+            message = "SEND";
+        }
+
+        if (send(socketFD, message.c_str(), message.size(), 0) == -1) {
+            std::cerr << "Could not send message" << std::endl;
+            exit(1);
+        }
+
+        size = recv(socketFD, buffer, BUFFER, 0);
+        if (size == -1) {
+            std::cerr << "Could not receive message" << std::endl;
+            exit(1);
+        } else if (size == 0) {
+            std::cerr << "Server closed connection" << std::endl;
+            exit(1);
+        } else {
+            buffer[size] = '\0';
+            std::cout << "Received: " << buffer << std::endl;
+        }
+    } while (1);
 
     return 0;
 }

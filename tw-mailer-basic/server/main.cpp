@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define BUFFER 1024
+
 int main(int argc, char* argv[]) {
     int port;
     std::string directoryName;
@@ -34,6 +36,8 @@ int main(int argc, char* argv[]) {
     std::cout << "directory name: " << directoryName << std::endl;
 
     int reuseValue = 1;
+    int size;
+    char buffer[BUFFER];
     socklen_t addressLength;
     struct sockaddr_in address;
     struct sockaddr_in clientAddress;
@@ -77,4 +81,29 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Connection established" << std::endl;
+
+    do {
+        size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
+        if (size == -1) {
+            std::cerr << "Could not receive" << std::endl;
+        } else if (size == 0) {
+            std::cout << "Client disconnected" << std::endl;
+        } else {
+            buffer[size] = '\0';
+
+            if (buffer[size - 2] == '\r' && buffer[size - 1] == '\n') {
+                size -= 2;
+            } else if (buffer[size - 1] == '\n') {
+                size--;
+            }
+
+            buffer[size] = '\0';
+            std::cout << "Received: " << buffer << std::endl;
+            
+            std::string message = "OK\n";
+            if (send(clientSocketFD, message.c_str(), message.size(), 0) == -1) {
+                std::cerr << "Could not send" << std::endl;
+            }
+        }
+    } while (strcmp(buffer, "QUIT") != 0);
 }
