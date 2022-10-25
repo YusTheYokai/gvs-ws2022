@@ -5,3 +5,15 @@ Command::Command(std::string name, std::string description, std::function<bool(i
     this->description = description;
     this->command = command;
 }
+
+std::string Command::getName() {
+    return name;
+}
+
+std::string Command::getDescription() {
+    return description;
+}
+
+std::function<bool(int, char[])> Command::getCommand() {
+    return command;
+}

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <arpa/inet.h>
 #include <iostream>
 #include <list>
@@ -24,7 +25,7 @@ bool sendCommand(int clientSocketFD, char buffer[]) {
     return true;
 }
 
-bool receiveCommand(int clientSocketFD, char buffer[]) {
+bool readCommand(int clientSocketFD, char buffer[]) {
     if (messages.size() > 0) {
         std::string answer = OK + messages.front();
         messages.pop_front();
@@ -38,6 +39,8 @@ bool receiveCommand(int clientSocketFD, char buffer[]) {
 
 int main(int argc, char* argv[]) {
     std::list<Command> commands;
+    commands.push_back(Command("SEND", "Send a message", sendCommand));
+    commands.push_back(Command("READ", "Read a message", readCommand));
     int port;
     std::string directoryName;
 
@@ -128,9 +131,13 @@ int main(int argc, char* argv[]) {
             buffer[size] = '\0';
             std::cout << "Received: " << buffer << std::endl;
             
-            std::string message = "OK\n";
-            if (send(clientSocketFD, message.c_str(), message.size(), 0) == -1) {
-                std::cerr << "Could not send" << std::endl;
+            auto command = std::find_if(commands.begin(), commands.end(), buffer);
+            if (command == commands.end()) {
+                std::cerr << "Unknown command" << std::endl;
+            } else {
+                if (!command->getCommand()(clientSocketFD, buffer)) {
+                    std::cerr << "Could not execute command" << std::endl;
+                }
             }
         }
     } while (strcmp(buffer, "QUIT") != 0);

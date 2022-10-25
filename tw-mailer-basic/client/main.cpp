@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
         if (selection == 0) {
             message = "QUIT";
         } else if (selection == 1) {
-            message = "SEND";
+            message = "SEND\nMy Name is Inigo Montoya. You killed my father. Prepare to die.";
         }
 
         if (send(socketFD, message.c_str(), message.size(), 0) == -1) {
