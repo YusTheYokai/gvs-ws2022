@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <iostream>
+#include <list>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string>
@@ -7,9 +8,36 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "command.h"
+
 #define BUFFER 1024
 
+std::list<std::string> messages;
+std::string OK = "OK\n";
+
+bool sendCommand(int clientSocketFD, char buffer[]) {
+    messages.push_back(buffer);
+    if (send(clientSocketFD, OK.c_str(), OK.size(), 0) == -1) {
+        std::cerr << "Could not send" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool receiveCommand(int clientSocketFD, char buffer[]) {
+    if (messages.size() > 0) {
+        std::string answer = OK + messages.front();
+        messages.pop_front();
+        if (send(clientSocketFD, answer.c_str(), answer.size(), 0) == -1) {
+            std::cerr << "Could not send" << std::endl;
+            return false;
+        }        
+    }
+    return true;
+}
+
 int main(int argc, char* argv[]) {
+    std::list<Command> commands;
     int port;
     std::string directoryName;
 
