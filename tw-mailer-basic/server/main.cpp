@@ -145,6 +145,16 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Command failed" << std::endl;
                 exit(1);
             }
+
+            std::string response;
+            for (auto line : lines) {
+                response += line + "\n";
+            }
+
+            if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
+                std::cerr << "Could not send" << std::endl;
+                exit(1);
+            }
         }
     } while (lines[0] != "QUIT");
 }

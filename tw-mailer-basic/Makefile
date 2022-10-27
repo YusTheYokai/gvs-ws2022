@@ -1,10 +1,18 @@
+OUT = build
+
 default: all
 
 all: clean build
 
 clean:
-	rm -f twmailer-client twmailer-server
+	rm -rf $(OUT)
 
-build:
-	g++ -I header client/main.cpp -o twmailer-client -std=c++17 -Wall
-	g++ -I header server/main.cpp -o twmailer-server -std=c++17 -Wall
+build: folderStructure command.o
+	g++ -std=c++17 -Wall -I header -o $(OUT)/twmailer-client client/main.cpp $(OUT)/object/command.o
+	g++ -std=c++17 -Wall -I header -o $(OUT)/twmailer-server server/main.cpp $(OUT)/object/command.o
+
+folderStructure:
+	mkdir -p $(OUT)/object
+
+command.o:
+	g++ -I header -o $(OUT)/object/command.o -c src/command.cpp
