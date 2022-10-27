@@ -1,6 +1,6 @@
 #include "command.h"
 
-Command::Command(std::string name, std::string description, std::function<bool(int, char[])> command) {
+Command::Command(std::string name, std::string description, std::function<void(int, std::vector<std::string>&)> command) {
     this->name = name;
     this->description = description;
     this->command = command;
@@ -14,6 +14,6 @@ std::string Command::getDescription() {
     return description;
 }
 
-std::function<bool(int, char[])> Command::getCommand() {
+std::function<void(int, std::vector<std::string>&)> Command::getCommand() {
     return command;
 }

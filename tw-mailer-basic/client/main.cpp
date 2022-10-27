@@ -10,9 +10,50 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "command.h"
+
 #define BUFFER 1024
 
+void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
+    std::string receiver;
+    std::string subject;
+    std::string content;
+    
+    std::cout << "Receiver: ";
+    std::cin >> receiver;
+    std::cout << "Subject: ";
+    std::cin >> subject;
+    std::cout << "Content: " << std::endl;
+    std::cin >> content;
+
+    message.clear();
+    message.push_back("SEND");
+    // TODO: replace with actual sender
+    message.push_back("if21b236");
+    message.push_back(receiver);
+    message.push_back(subject);
+    message.push_back(content);
+    message.push_back(".");
+}
+
+void readCommand(int serverSocketFD, std::vector<std::string>& message) {
+    int messageNumber;
+
+    std::cout << "Message number: ";
+    std::cin >> messageNumber;
+
+    message.clear();
+    message.push_back("READ");
+    // TODO: replace with receiver
+    message.push_back("if21b236");
+    message.push_back(std::to_string(messageNumber));
+}
+
 int main(int argc, char* argv[]) {
+    std::map<std::string, Command> commands;
+    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "", sendCommand)));
+    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "", readCommand)));
+
     std::string ip;
     int port;
 
@@ -66,26 +107,33 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Available commands:" << std::endl;
 
-    std::cout << " (0) QUIT - logout" << std::endl;
-    std::cout << " (1) SEND - send a message to the server" << std::endl;
-    std::cout << " (2) LIST - list all of your messages" << std::endl;
-    std::cout << " (3) READ - read one of your messages" << std::endl;
-    std::cout << " (4) DEL  - remove a message" << std::endl;
+    std::cout << "QUIT - logout" << std::endl;
+    std::cout << "SEND - send a message to the server" << std::endl;
+    std::cout << "LIST - list all of your messages" << std::endl;
+    std::cout << "READ - read one of your messages" << std::endl;
+    std::cout << "DEL  - remove a message" << std::endl;
 
     do {
-        std::cout << "Please enter a command: ";
-        int selection = 0;
-        std::cin >> selection;
-        // TODO: catch exception
+        std::vector<std::string> lines;
+        std::string selection;
 
-        std::string message;
-        if (selection == 0) {
-            message = "QUIT";
-        } else if (selection == 1) {
-            message = "SEND\nMy Name is Inigo Montoya. You killed my father. Prepare to die.";
+        std::cout << "Please enter a command: ";
+        std::cin >> selection;
+
+        auto command = commands.at(selection);
+        try {
+            command.getCommand()(socketFD, lines);
+        } catch (std::exception& e) {
+            std::cerr << "Command failed" << std::endl;
+            exit(1);
         }
 
-        if (send(socketFD, message.c_str(), message.size(), 0) == -1) {
+        std::string message;
+        for (auto line : lines) {
+            message += line + "\n";
+        }
+
+        if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
             std::cerr << "Could not send message" << std::endl;
             exit(1);
         }

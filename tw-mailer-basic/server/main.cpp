@@ -2,10 +2,12 @@
 #include <arpa/inet.h>
 #include <iostream>
 #include <list>
+#include <map>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string>
 #include <string.h>
+#include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -16,31 +18,29 @@
 std::list<std::string> messages;
 std::string OK = "OK\n";
 
-bool sendCommand(int clientSocketFD, char buffer[]) {
-    messages.push_back(buffer);
-    if (send(clientSocketFD, OK.c_str(), OK.size(), 0) == -1) {
-        std::cerr << "Could not send" << std::endl;
-        return false;
-    }
-    return true;
+void sendCommand(int clientSocketFD, std::vector<std::string>& message) {
+    messages.push_back(message[1]);
+    message.clear();
+    message.push_back(OK);
 }
 
-bool readCommand(int clientSocketFD, char buffer[]) {
-    if (messages.size() > 0) {
-        std::string answer = OK + messages.front();
-        messages.pop_front();
-        if (send(clientSocketFD, answer.c_str(), answer.size(), 0) == -1) {
-            std::cerr << "Could not send" << std::endl;
-            return false;
-        }        
+void readCommand(int clientSocketFD, std::vector<std::string>& message) {
+    if (messages.empty()) {
+        // TODO: Use better exception
+        throw std::runtime_error("No messages to read");
     }
-    return true;
+
+    message.clear();
+    message.push_back(OK);
+    message.push_back(messages.front());
+    messages.pop_front();
 }
 
 int main(int argc, char* argv[]) {
-    std::list<Command> commands;
-    commands.push_back(Command("SEND", "Send a message", sendCommand));
-    commands.push_back(Command("READ", "Read a message", readCommand));
+    std::map<std::string, Command> commands;
+    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "", sendCommand)));
+    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "", readCommand)));
+
     int port;
     std::string directoryName;
 
@@ -113,6 +113,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Connection established" << std::endl;
 
+    std::vector<std::string> lines;
     do {
         size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
         if (size == -1) {
@@ -130,15 +131,20 @@ int main(int argc, char* argv[]) {
 
             buffer[size] = '\0';
             std::cout << "Received: " << buffer << std::endl;
-            
-            auto command = std::find_if(commands.begin(), commands.end(), buffer);
-            if (command == commands.end()) {
-                std::cerr << "Unknown command" << std::endl;
-            } else {
-                if (!command->getCommand()(clientSocketFD, buffer)) {
-                    std::cerr << "Could not execute command" << std::endl;
-                }
+
+            std::stringstream ss(buffer);
+            std::string line;
+            while (std::getline(ss, line, '\n')) {
+                lines.push_back(line);
+            }
+
+            auto command = commands.at(lines[0]);
+            try {
+                command.getCommand()(clientSocketFD, lines);
+            } catch (...) {
+                std::cerr << "Command failed" << std::endl;
+                exit(1);
             }
         }
-    } while (strcmp(buffer, "QUIT") != 0);
+    } while (lines[0] != "QUIT");
 }
