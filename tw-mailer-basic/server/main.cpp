@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <arpa/inet.h>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <list>
 #include <map>
@@ -14,37 +16,74 @@
 #include "command.h"
 #include "messageUtils.h"
 
+namespace fs = std::filesystem;
+
 #define BUFFER 1024
 
-std::list<std::string> messages;
-std::string OK = "OK\n";
+std::string OK = "OK";
+std::string ERR = "ERR";
+
+std::string directoryName;
 
 void sendCommand(int clientSocketFD, std::vector<std::string>& message) {
-    messages.push_back(message[1]);
+    // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
+    fs::create_directory(directoryName + "/" + message[2]);
+    std::string fileName = directoryName + "/" + message[2] + "/" + message[3];
+
+    std::ofstream file(fileName);
+    file << message[1] << std::endl << message[3] << std::endl << message[4];
+    file.close();
+
     message.clear();
     message.push_back(OK);
 }
 
 void listCommand(int clientSocketFD, std::vector<std::string>& message) {
-    std::string user = message[1];
+    int count = 0;
 
     message.clear();
-    message.push_back(std::to_string(messages.size()));
-    for (auto m : messages) {
-        message.push_back(m);
+    message.push_back("");
+    
+    try {
+        fs::directory_iterator dir(directoryName + "/" + message[1]);
+        for (auto file : dir) {
+            message.push_back(file.path().filename());
+            count++;
+        }
+    } catch (fs::filesystem_error& e) {
+        // noop
     }
+    message[0] = std::to_string(count);
 }
 
 void readCommand(int clientSocketFD, std::vector<std::string>& message) {
-    if (messages.empty()) {
-        // TODO: Use better exception
-        throw std::runtime_error("No messages to read");
+    if (!fs::is_directory(directoryName + "/" + message[1])) {
+        throw std::runtime_error("User does not have any messages");
     }
 
-    message.clear();
+    fs::path filePath = "";
+
+    int count = 0;
+    fs::directory_iterator dir(directoryName + "/" + message[1]);
+    for (auto file : dir) {
+        if (count == std::stoi(message[2])) {
+            filePath = file.path();
+        } else {
+            count++;
+        }
+    }
+
+    if (filePath == "") {
+        throw std::runtime_error("Message number out of range");
+    }
+
+    std::ifstream file(filePath);
+    std::string line;
     message.push_back(OK);
-    message.push_back(messages.front());
-    messages.pop_front();
+    while (std::getline(file, line)) {
+        message.push_back(line);
+    }
+    file.close();
 }
 
 void quitCommand(int clientSocketFD, std::vector<std::string>& message) {
@@ -59,7 +98,6 @@ int main(int argc, char* argv[]) {
     commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
 
     int port;
-    std::string directoryName;
 
     char c;
 
@@ -80,8 +118,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    std::cout << "port: " << port << std::endl;
-    std::cout << "directory name: " << directoryName << std::endl;
+    fs::create_directory(directoryName);
 
     int reuseValue = 1;
     int size;
@@ -139,7 +176,8 @@ int main(int argc, char* argv[]) {
         auto command = commands.at(lines[0]);
         try {
             command.getCommand()(clientSocketFD, lines);
-        } catch (...) {
+        } catch (std::exception& e) {
+            std::cerr << e.what() << std::endl;
             std::cerr << "Command failed" << std::endl;
             exit(1);
         }

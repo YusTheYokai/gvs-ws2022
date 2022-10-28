@@ -15,6 +15,8 @@
 
 #define BUFFER 1024
 
+std::string username;
+
 void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     std::string receiver;
     std::string subject;
@@ -24,13 +26,12 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     std::cin >> receiver;
     std::cout << "Subject: ";
     std::cin >> subject;
-    std::cout << "Content: " << std::endl;
-    std::cin >> content;
+    std::cout << "Content: ";
+    std::getline(std::cin >> std::ws, content);
 
     message.clear();
     message.push_back("SEND");
-    // TODO: replace with actual sender
-    message.push_back("if21b236");
+    message.push_back(username);
     message.push_back(receiver);
     message.push_back(subject);
     message.push_back(content);
@@ -40,8 +41,7 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
 void listCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.clear();
     message.push_back("LIST");
-    // TODO: replace with actual sender
-    message.push_back("if21b236");
+    message.push_back(username);
 }
 
 void readCommand(int serverSocketFD, std::vector<std::string>& message) {
@@ -52,8 +52,7 @@ void readCommand(int serverSocketFD, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("READ");
-    // TODO: replace with receiver
-    message.push_back("if21b236");
+    message.push_back(username);
     message.push_back(std::to_string(messageNumber));
 }
 
@@ -117,7 +116,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Connection established" << std::endl;
 
     std::cout << "Please enter your username: ";
-    std::string username;
     std::cin >> username;
 
     std::cout << "Available commands:" << std::endl;
