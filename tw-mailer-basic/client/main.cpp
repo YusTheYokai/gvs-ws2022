@@ -44,6 +44,7 @@ void listCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.push_back(username);
 }
 
+// TODO: abstract read and delete
 void readCommand(int serverSocketFD, std::vector<std::string>& message) {
     int messageNumber;
 
@@ -52,6 +53,18 @@ void readCommand(int serverSocketFD, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("READ");
+    message.push_back(username);
+    message.push_back(std::to_string(messageNumber));
+}
+
+void deleteCommand(int serverSocketFD, std::vector<std::string>& message) {
+    int messageNumber;
+
+    std::cout << "Message number: ";
+    std::cin >> messageNumber;
+
+    message.clear();
+    message.push_back("DEL");
     message.push_back(username);
     message.push_back(std::to_string(messageNumber));
 }
@@ -66,6 +79,7 @@ int main(int argc, char* argv[]) {
     commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "send a message", sendCommand)));
     commands.insert(std::pair<std::string, Command>("LIST", Command("List", "list all messages of a user", listCommand)));
     commands.insert(std::pair<std::string, Command>("READ", Command("Read", "read a message", readCommand)));
+    commands.insert(std::pair<std::string, Command>("DEL", Command("Delete", "deletes a message", deleteCommand)));
     commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit", "quit the client", quitCommand)));
 
     std::string ip;
@@ -131,13 +145,7 @@ int main(int argc, char* argv[]) {
         std::cin >> selection;
 
         auto command = commands.at(selection);
-        try {
-            command.getCommand()(socketFD, lines);
-        } catch (std::exception& e) {
-            std::cerr << "Command failed" << std::endl;
-            exit(1);
-        }
-
+        command.getCommand()(socketFD, lines);
         std::string message = MessageUtils::toString(lines);
 
         if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
