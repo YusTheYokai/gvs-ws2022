@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "messageUtils.h"
 
 #define BUFFER 1024
 
@@ -51,8 +52,8 @@ void readCommand(int serverSocketFD, std::vector<std::string>& message) {
 
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "", sendCommand)));
-    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "", readCommand)));
+    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "send a message", sendCommand)));
+    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "read a message", readCommand)));
 
     std::string ip;
     int port;
@@ -106,12 +107,9 @@ int main(int argc, char* argv[]) {
     std::cin >> username;
 
     std::cout << "Available commands:" << std::endl;
-
-    std::cout << "QUIT - logout" << std::endl;
-    std::cout << "SEND - send a message to the server" << std::endl;
-    std::cout << "LIST - list all of your messages" << std::endl;
-    std::cout << "READ - read one of your messages" << std::endl;
-    std::cout << "DEL  - remove a message" << std::endl;
+    for (auto command : commands) {
+        std::cout << command.first << " - " << command.second.getName() << ": " << command.second.getDescription() << std::endl;
+    }
 
     do {
         std::vector<std::string> lines;
@@ -128,10 +126,7 @@ int main(int argc, char* argv[]) {
             exit(1);
         }
 
-        std::string message;
-        for (auto line : lines) {
-            message += line + "\n";
-        }
+        std::string message = MessageUtils::toString(lines);
 
         if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
             std::cerr << "Could not send message" << std::endl;
@@ -139,15 +134,11 @@ int main(int argc, char* argv[]) {
         }
 
         size = recv(socketFD, buffer, BUFFER, 0);
-        if (size == -1) {
-            std::cerr << "Could not receive message" << std::endl;
-            exit(1);
-        } else if (size == 0) {
-            std::cerr << "Server closed connection" << std::endl;
-            exit(1);
-        } else {
-            buffer[size] = '\0';
-            std::cout << "Received: " << buffer << std::endl;
+        MessageUtils::validateMessage(size);
+        MessageUtils::parseMessage(buffer, size, lines);
+
+        for (auto line : lines) {
+            std::cout << line << std::endl;
         }
     } while (1);
 

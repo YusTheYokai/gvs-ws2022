@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "messageUtils.h"
 
 #define BUFFER 1024
 
@@ -116,45 +117,22 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> lines;
     do {
         size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
-        if (size == -1) {
-            std::cerr << "Could not receive" << std::endl;
-        } else if (size == 0) {
-            std::cout << "Client disconnected" << std::endl;
-        } else {
-            buffer[size] = '\0';
+        MessageUtils::validateMessage(size);
+        MessageUtils::parseMessage(buffer, size, lines);
 
-            if (buffer[size - 2] == '\r' && buffer[size - 1] == '\n') {
-                size -= 2;
-            } else if (buffer[size - 1] == '\n') {
-                size--;
-            }
+        auto command = commands.at(lines[0]);
+        try {
+            command.getCommand()(clientSocketFD, lines);
+        } catch (...) {
+            std::cerr << "Command failed" << std::endl;
+            exit(1);
+        }
 
-            buffer[size] = '\0';
-            std::cout << "Received: " << buffer << std::endl;
+        std::string response = MessageUtils::toString(lines);
 
-            std::stringstream ss(buffer);
-            std::string line;
-            while (std::getline(ss, line, '\n')) {
-                lines.push_back(line);
-            }
-
-            auto command = commands.at(lines[0]);
-            try {
-                command.getCommand()(clientSocketFD, lines);
-            } catch (...) {
-                std::cerr << "Command failed" << std::endl;
-                exit(1);
-            }
-
-            std::string response;
-            for (auto line : lines) {
-                response += line + "\n";
-            }
-
-            if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
-                std::cerr << "Could not send" << std::endl;
-                exit(1);
-            }
+        if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
+            std::cerr << "Could not send" << std::endl;
+            exit(1);
         }
     } while (lines[0] != "QUIT");
 }
