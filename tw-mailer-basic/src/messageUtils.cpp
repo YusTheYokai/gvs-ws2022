@@ -8,7 +8,7 @@ void MessageUtils::validateMessage(int size) {
         std::cerr << "Could not receive" << std::endl;
         exit(1);
     } else if (size == 0) {
-        std::cout << "Client disconnected" << std::endl;
+        std::cout << "Disconnected" << std::endl;
         exit(1);
     }
 }

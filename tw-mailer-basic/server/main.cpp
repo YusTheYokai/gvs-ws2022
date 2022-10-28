@@ -25,6 +25,16 @@ void sendCommand(int clientSocketFD, std::vector<std::string>& message) {
     message.push_back(OK);
 }
 
+void listCommand(int clientSocketFD, std::vector<std::string>& message) {
+    std::string user = message[1];
+
+    message.clear();
+    message.push_back(std::to_string(messages.size()));
+    for (auto m : messages) {
+        message.push_back(m);
+    }
+}
+
 void readCommand(int clientSocketFD, std::vector<std::string>& message) {
     if (messages.empty()) {
         // TODO: Use better exception
@@ -37,10 +47,16 @@ void readCommand(int clientSocketFD, std::vector<std::string>& message) {
     messages.pop_front();
 }
 
+void quitCommand(int clientSocketFD, std::vector<std::string>& message) {
+    exit(0);
+}
+
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "", sendCommand)));
-    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "", readCommand)));
+    commands.insert(std::pair<std::string, Command>("SEND", Command("", "", sendCommand)));
+    commands.insert(std::pair<std::string, Command>("LIST", Command("", "", listCommand)));
+    commands.insert(std::pair<std::string, Command>("READ", Command("", "", readCommand)));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
 
     int port;
     std::string directoryName;
@@ -134,5 +150,5 @@ int main(int argc, char* argv[]) {
             std::cerr << "Could not send" << std::endl;
             exit(1);
         }
-    } while (lines[0] != "QUIT");
+    } while (1);
 }

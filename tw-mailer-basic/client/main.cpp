@@ -37,6 +37,13 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.push_back(".");
 }
 
+void listCommand(int serverSocketFD, std::vector<std::string>& message) {
+    message.clear();
+    message.push_back("LIST");
+    // TODO: replace with actual sender
+    message.push_back("if21b236");
+}
+
 void readCommand(int serverSocketFD, std::vector<std::string>& message) {
     int messageNumber;
 
@@ -50,10 +57,17 @@ void readCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.push_back(std::to_string(messageNumber));
 }
 
+void quitCommand(int serverSocketFD, std::vector<std::string>& message) {
+    message.clear();
+    message.push_back("QUIT");
+}
+
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
     commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "send a message", sendCommand)));
+    commands.insert(std::pair<std::string, Command>("LIST", Command("List", "list all messages of a user", listCommand)));
     commands.insert(std::pair<std::string, Command>("READ", Command("Read", "read a message", readCommand)));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit", "quit the client", quitCommand)));
 
     std::string ip;
     int port;
@@ -131,6 +145,10 @@ int main(int argc, char* argv[]) {
         if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
             std::cerr << "Could not send message" << std::endl;
             exit(1);
+        }
+
+        if (lines[0] == "QUIT") {
+            exit(0);
         }
 
         size = recv(socketFD, buffer, BUFFER, 0);
