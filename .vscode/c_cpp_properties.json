@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${default}",
-                "${workspaceFolder}/tw-mailer-basic/header"
+                "${workspaceFolder}/tw-mailer-basic/header",
+                "${workspaceFolder}/tw-mailer-basic/client/header"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <map>
 #include <netinet/in.h>
+#include <regex>
 #include <stdio.h>
 #include <string>
 #include <string.h>
@@ -12,10 +13,9 @@
 
 #include "command.h"
 #include "messageUtils.h"
+#include "usernameUtils.h"
 
 #define BUFFER 1024
-
-std::string username;
 
 void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     std::string receiver;
@@ -24,6 +24,11 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     
     std::cout << "Receiver: ";
     std::cin >> receiver;
+
+    if (!UsernameUtils::usernameIsValid(receiver)) {
+        throw std::invalid_argument("Invalid receiver username");
+    }
+
     std::cout << "Subject: ";
     std::cin >> subject;
     std::cout << "Content: ";
@@ -31,7 +36,7 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("SEND");
-    message.push_back(username);
+    message.push_back(UsernameUtils::username);
     message.push_back(receiver);
     message.push_back(subject);
     message.push_back(content);
@@ -41,7 +46,7 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
 void listCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.clear();
     message.push_back("LIST");
-    message.push_back(username);
+    message.push_back(UsernameUtils::username);
 }
 
 // TODO: abstract read and delete
@@ -53,7 +58,7 @@ void readCommand(int serverSocketFD, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("READ");
-    message.push_back(username);
+    message.push_back(UsernameUtils::username);
     message.push_back(std::to_string(messageNumber));
 }
 
@@ -65,7 +70,7 @@ void deleteCommand(int serverSocketFD, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("DEL");
-    message.push_back(username);
+    message.push_back(UsernameUtils::username);
     message.push_back(std::to_string(messageNumber));
 }
 
@@ -76,11 +81,11 @@ void quitCommand(int serverSocketFD, std::vector<std::string>& message) {
 
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("Send", "send a message", sendCommand)));
-    commands.insert(std::pair<std::string, Command>("LIST", Command("List", "list all messages of a user", listCommand)));
-    commands.insert(std::pair<std::string, Command>("READ", Command("Read", "read a message", readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL", Command("Delete", "deletes a message", deleteCommand)));
-    commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit", "quit the client", quitCommand)));
+    commands.insert(std::pair<std::string, Command>("SEND", Command("Send  ", "send a message",              sendCommand)));
+    commands.insert(std::pair<std::string, Command>("LIST", Command("List  ", "list all messages of a user", listCommand)));
+    commands.insert(std::pair<std::string, Command>("READ", Command("Read  ", "read a message",              readCommand)));
+    commands.insert(std::pair<std::string, Command>("DEL ", Command("Delete", "deletes a message",           deleteCommand)));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit  ", "quit the client",             quitCommand)));
 
     std::string ip;
     int port;
@@ -129,8 +134,11 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Connection established" << std::endl;
 
-    std::cout << "Please enter your username: ";
-    std::cin >> username;
+    do {
+        std::cout << "Username must match the regex " << UsernameUtils::regexString << std::endl;
+        std::cout << "Username: ";
+        std::cin >> UsernameUtils::username;
+    } while (!UsernameUtils::usernameIsValid(UsernameUtils::username));
 
     std::cout << "Available commands:" << std::endl;
     for (auto command : commands) {
@@ -145,24 +153,28 @@ int main(int argc, char* argv[]) {
         std::cin >> selection;
 
         auto command = commands.at(selection);
-        command.getCommand()(socketFD, lines);
-        std::string message = MessageUtils::toString(lines);
+        try {
+            command.getCommand()(socketFD, lines);
+            std::string message = MessageUtils::toString(lines);
 
-        if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
-            std::cerr << "Could not send message" << std::endl;
-            exit(1);
-        }
+            if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
+                std::cerr << "Could not send message" << std::endl;
+                exit(1);
+            }
 
-        if (lines[0] == "QUIT") {
-            exit(0);
-        }
+            if (lines[0] == "QUIT") {
+                exit(0);
+            }
 
-        size = recv(socketFD, buffer, BUFFER, 0);
-        MessageUtils::validateMessage(size);
-        MessageUtils::parseMessage(buffer, size, lines);
+            size = recv(socketFD, buffer, BUFFER, 0);
+            MessageUtils::validateMessage(size);
+            MessageUtils::parseMessage(buffer, size, lines);
 
-        for (auto line : lines) {
-            std::cout << line << std::endl;
+            for (auto line : lines) {
+                std::cout << line << std::endl;
+            }
+        } catch (std::exception& e) {
+            std::cerr << e.what() << std::endl;
         }
     } while (1);
 
