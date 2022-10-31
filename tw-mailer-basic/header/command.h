@@ -1,7 +1,13 @@
+#ifndef COMMAND
+#define COMMAND
+
 #include <functional>
 #include <string>
 #include <vector>
 
+/**
+ * Command class for both client and server.
+ */
 class Command {
 
     public:
@@ -16,3 +22,5 @@ class Command {
         std::string description;
         std::function<void(int, std::vector<std::string>&)> command;
 };
+
+#endif // COMMAND

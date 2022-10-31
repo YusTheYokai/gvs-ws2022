@@ -1,6 +1,12 @@
+#ifndef MESSAGEUTILS
+#define MESSAGEUTILS
+
 #include <string>
 #include <vector>
 
+/**
+ * Utility class for message handling.
+ */
 class MessageUtils {
 
     public:
@@ -30,3 +36,5 @@ class MessageUtils {
     private:
         MessageUtils();
 };
+
+#endif // MESSAGEUTILS
