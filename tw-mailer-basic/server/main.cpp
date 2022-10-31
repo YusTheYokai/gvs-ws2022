@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string>
 #include <string.h>
@@ -23,8 +24,6 @@ namespace fs = std::filesystem;
 
 std::string OK = "OK";
 std::string ERR = "ERR";
-
-std::string directoryName;
 
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
@@ -125,10 +124,12 @@ void deleteCommand(std::string directoryName, std::vector<std::string>& message)
 }
 
 void quitCommand(std::vector<std::string>& message) {
-    exit(0);
+    throw std::runtime_error("quit");
 }
 
 int main(int argc, char* argv[]) {
+    signal(SIGINT, [](int flag) { exit(0); });
+
     std::string port;
     std::string directoryName;
 
@@ -193,35 +194,40 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    addressLength = sizeof(struct sockaddr_in);
-    int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
-    if (clientSocketFD == -1) {
-        std::cerr << "Could not accept" << std::endl;
-        exit(1);
-    }
-
-    std::cout << "Connection established" << std::endl;
-
-    std::vector<std::string> lines;
-    do {
-        size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
-        MessageUtils::validateMessage(size);
-        MessageUtils::parseMessage(buffer, size, lines);
-
-        try {
-            auto command = commands.at(lines[0]);
-            command.getCommand()(lines);
-        } catch (std::out_of_range& e) {
-            lines.clear();
-            lines.push_back(ERR);
-            lines.push_back("Unknown command");
-        }
-
-        std::string response = MessageUtils::toString(lines);
-
-        if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
-            std::cerr << "Could not send" << std::endl;
+    while (1) {
+        std::cout << "Accepting connections on port " << port << "..." << std::endl;
+        addressLength = sizeof(struct sockaddr_in);
+        int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
+        if (clientSocketFD == -1) {
+            std::cerr << "Could not accept" << std::endl;
             exit(1);
         }
-    } while (1);
+
+        std::cout << "Connection established" << std::endl;
+
+        std::vector<std::string> lines;
+        while (1) {
+            size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
+            MessageUtils::validateMessage(size);
+            MessageUtils::parseMessage(buffer, size, lines);
+
+            try {
+                auto command = commands.at(lines[0]);
+                command.getCommand()(lines);
+            } catch (std::out_of_range& e) {
+                lines.clear();
+                lines.push_back(ERR);
+                lines.push_back("Unknown command");
+            } catch (std::runtime_error& e) {
+                break;
+            }
+
+            std::string response = MessageUtils::toString(lines);
+
+            if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
+                std::cerr << "Could not send" << std::endl;
+                exit(1);
+            }
+        }
+    }
 }
