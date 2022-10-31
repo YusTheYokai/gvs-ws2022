@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "getoptUtils.h"
 #include "messageUtils.h"
 #include "usernameUtils.h"
 
@@ -83,29 +84,16 @@ int main(int argc, char* argv[]) {
     commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit  ", "quit the client",             quitCommand)));
 
     std::string ip;
-    int port;
+    std::string port;
 
-    char c;
-
-    while ((c = getopt(argc, argv, "")) != EOF) {
-        switch (c) {
-            case '?':
-                std::cerr << "Unknown option" << std::endl;
-                exit(1);
-        }
-    }
-
-    if (optind < argc) {
-        ip = argv[optind++];
-        port = atoi(argv[optind]);
-        // TODO: catch exception
-    } else {
-        std::cerr << "No ip or port given" << std::endl;
+    try {
+        GetoptUtils::parseArguments(ip, port, argc, argv);
+    } catch (std::invalid_argument& e) {
+        std::cerr << e.what() << std::endl;
         exit(1);
+    } catch (std::out_of_range& e) {
+        std::cerr << "ip or port missing" << std::endl;
     }
-
-    std::cout << "ip: " << ip << std::endl;
-    std::cout << "port: " << port << std::endl;
 
     int size;
     char buffer[BUFFER];
@@ -119,7 +107,7 @@ int main(int argc, char* argv[]) {
 
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_port = htons(port);
+    address.sin_port = htons(std::stoi(port));
     inet_aton(ip.c_str(), &address.sin_addr);
 
     if (connect(socketFD, (struct sockaddr*) &address, sizeof(address)) == -1) {

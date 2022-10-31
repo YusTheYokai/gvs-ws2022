@@ -1,6 +1,9 @@
+CC             = g++
+CFLAGS         = -std=c++17 -Wall
+
 OUT            = build
 GLOBAL_INCLUDE = header
-GLOBAL_OBJECT  = $(OUT)/object/command.o $(OUT)/object/messageUtils.o
+GLOBAL_OBJECT  = $(OUT)/object/command.o $(OUT)/object/messageUtils.o $(OUT)/object/getoptUtils.o
 
 CLIENT_INCLUDE = client/header
 CLIENT_OBJECT  = $(OUT)/object/usernameUtils.o
@@ -14,18 +17,21 @@ all: clean build
 clean:
 	rm -rf $(OUT)
 
-build: folderStructure command.o messageUtils.o usernameUtils.o
-	g++ -std=c++17 -Wall -I $(GLOBAL_INCLUDE) -I $(CLIENT_INCLUDE) -o $(OUT)/twmailer-client client/main.cpp $(GLOBAL_OBJECT) $(CLIENT_OBJECT)
-	g++ -std=c++17 -Wall -I $(GLOBAL_INCLUDE)                      -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT)
+build: folderStructure command.o getoptUtils.o messageUtils.o usernameUtils.o
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -I $(CLIENT_INCLUDE) -o $(OUT)/twmailer-client client/main.cpp $(GLOBAL_OBJECT) $(CLIENT_OBJECT)
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT)
 
 folderStructure:
 	mkdir -p $(OUT)/object
 
 command.o:
-	g++ -std=c++17 -Wall -I header        -o $(OUT)/object/command.o       -c src/command.cpp
+	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/command.o       -c src/command.cpp
+
+getoptUtils.o:
+	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/getoptUtils.o   -c src/getoptUtils.cpp
 
 messageUtils.o:
-	g++ -std=c++17 -Wall -I header        -o $(OUT)/object/messageUtils.o  -c src/messageUtils.cpp
+	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/messageUtils.o  -c src/messageUtils.cpp
 
 usernameUtils.o:
-	g++ -std=c++17 -Wall -I client/header -o $(OUT)/object/usernameUtils.o -c client/src/usernameUtils.cpp
+	$(CC) $(CFLAGS) -I client/header -o $(OUT)/object/usernameUtils.o -c client/src/usernameUtils.cpp

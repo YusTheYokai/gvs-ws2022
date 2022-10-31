@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "getoptUtils.h"
 #include "messageUtils.h"
 
 namespace fs = std::filesystem;
@@ -25,7 +26,7 @@ std::string ERR = "ERR";
 
 std::string directoryName;
 
-void sendCommand(std::vector<std::string>& message) {
+void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
     fs::create_directory(directoryName + "/" + message[2]);
     std::string fileName = directoryName + "/" + message[2] + "/" + message[3];
@@ -38,7 +39,7 @@ void sendCommand(std::vector<std::string>& message) {
     message.push_back(OK);
 }
 
-void listCommand(std::vector<std::string>& message) {
+void listCommand(std::string directoryName, std::vector<std::string>& message) {
     int count = 0;
 
     message.clear();
@@ -56,7 +57,7 @@ void listCommand(std::vector<std::string>& message) {
     message[0] = std::to_string(count);
 }
 
-void readCommand(std::vector<std::string>& message) {
+void readCommand(std::string directoryName, std::vector<std::string>& message) {
     if (!fs::is_directory(directoryName + "/" + message[1])) {
         message.clear();
         message.push_back(ERR);
@@ -89,7 +90,7 @@ void readCommand(std::vector<std::string>& message) {
     file.close();
 }
 
-void deleteCommand(std::vector<std::string>& message) {
+void deleteCommand(std::string directoryName, std::vector<std::string>& message) {
     if (!fs::is_directory(directoryName + "/" + message[1])) {
         message.clear();
         message.push_back(ERR);
@@ -128,31 +129,27 @@ void quitCommand(std::vector<std::string>& message) {
 }
 
 int main(int argc, char* argv[]) {
+    std::string port;
+    std::string directoryName;
+
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("", "", sendCommand)));
-    commands.insert(std::pair<std::string, Command>("LIST", Command("", "", listCommand)));
-    commands.insert(std::pair<std::string, Command>("READ", Command("", "", readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "", deleteCommand)));
+    commands.insert(std::pair<std::string, Command>("SEND", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("LIST", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("READ", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
     commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
 
-    int port;
-
-    char c;
-
-    while ((c = getopt(argc, argv, "")) != EOF) {
-        switch (c) {
-            case '?':
-                std::cerr << "Unknown option" << std::endl;
-                exit(1);
-        }
-    }
-
-    if (optind < argc) {
-        port = atoi(argv[optind++]);
-        directoryName = argv[optind];
-        // TODO: catch exception
-    } else {
-        std::cerr << "No port or spool directory name given" << std::endl;
+    try {
+        GetoptUtils::parseArguments(port, directoryName, argc, argv);
+    } catch (std::invalid_argument& e) {
+        std::cerr << e.what() << std::endl;
+        exit(1);
+    } catch (std::out_of_range& e) {
+        std::cerr << "port or spool directory name missgin" << std::endl;
         exit(1);
     }
 
@@ -183,7 +180,7 @@ int main(int argc, char* argv[]) {
 
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_port = htons(port);
+    address.sin_port = htons(std::stoi(port));
     address.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(socketFD, (struct sockaddr*) &address, sizeof(address)) == -1) {
