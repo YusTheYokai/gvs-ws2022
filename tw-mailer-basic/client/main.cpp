@@ -135,8 +135,8 @@ int main(int argc, char* argv[]) {
         std::cout << "Please enter a command: ";
         std::cin >> selection;
 
-        auto command = commands.at(selection);
         try {
+            auto command = commands.at(selection);
             command.getCommand()(lines);
             std::string message = MessageUtils::toString(lines);
 
@@ -156,6 +156,8 @@ int main(int argc, char* argv[]) {
             for (auto line : lines) {
                 std::cout << line << std::endl;
             }
+        } catch (std::out_of_range& e) {
+            std::cerr << "Invalid command" << std::endl;
         } catch (std::exception& e) {
             std::cerr << e.what() << std::endl;
         }

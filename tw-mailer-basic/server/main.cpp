@@ -75,8 +75,8 @@ void readCommand(std::string directoryName, std::vector<std::string>& message) {
         count++;
     }
 
+    message.clear();
     if (filePath == "") {
-        message.clear();
         message.push_back(ERR);
         return;
     }
@@ -208,8 +208,15 @@ int main(int argc, char* argv[]) {
         MessageUtils::validateMessage(size);
         MessageUtils::parseMessage(buffer, size, lines);
 
-        auto command = commands.at(lines[0]);
-        command.getCommand()(lines);
+        try {
+            auto command = commands.at(lines[0]);
+            command.getCommand()(lines);
+        } catch (std::out_of_range& e) {
+            lines.clear();
+            lines.push_back(ERR);
+            lines.push_back("Unknown command");
+        }
+
         std::string response = MessageUtils::toString(lines);
 
         if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
