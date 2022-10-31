@@ -124,6 +124,7 @@ void deleteCommand(std::string directoryName, std::vector<std::string>& message)
 }
 
 void quitCommand(std::vector<std::string>& message) {
+    std::cout << "Client has disconnected" << std::endl;
     throw std::runtime_error("quit");
 }
 
