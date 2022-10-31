@@ -16,6 +16,7 @@
 
 #include "command.h"
 #include "getoptUtils.h"
+#include "logger.h"
 #include "messageUtils.h"
 
 namespace fs = std::filesystem;
@@ -124,7 +125,7 @@ void deleteCommand(std::string directoryName, std::vector<std::string>& message)
 }
 
 void quitCommand(std::vector<std::string>& message) {
-    std::cout << "Client has disconnected" << std::endl;
+    Logger::info("Client has disconnected");
     throw std::runtime_error("quit");
 }
 
@@ -148,10 +149,10 @@ int main(int argc, char* argv[]) {
     try {
         GetoptUtils::parseArguments(port, directoryName, argc, argv);
     } catch (std::invalid_argument& e) {
-        std::cerr << e.what() << std::endl;
+        Logger::error(e.what());
         exit(1);
     } catch (std::out_of_range& e) {
-        std::cerr << "port or spool directory name missgin" << std::endl;
+        Logger::error("port or sppol directory name missing");
         exit(1);
     }
 
@@ -166,17 +167,13 @@ int main(int argc, char* argv[]) {
 
     int socketFD = socket(AF_INET, SOCK_STREAM, 0);
     if (socketFD == -1) {
-        std::cerr << "Could not create socket" << std::endl;
+        Logger::error("Could not create socket");
         exit(1);
     }
 
-    if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &reuseValue, sizeof(int)) < 0) {
-        std::cerr << "Could not set socket options" << std::endl;
-        exit(1);
-    }
-
-    if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEPORT, &reuseValue, sizeof(int)) < 0) {
-        std::cerr << "Could not set socket options" << std::endl;
+    if (setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &reuseValue, sizeof(int)) < 0 ||
+            setsockopt(socketFD, SOL_SOCKET, SO_REUSEPORT, &reuseValue, sizeof(int)) < 0) {
+        Logger::error("Could not set socket options");
         exit(1);
     }
 
@@ -186,25 +183,25 @@ int main(int argc, char* argv[]) {
     address.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(socketFD, (struct sockaddr*) &address, sizeof(address)) == -1) {
-        std::cerr << "Bind has failed" << std::endl;
+        Logger::error("Bind has failed");
         exit(1);
     }
 
     if (listen(socketFD, 5) == -1) {
-        std::cerr << "Could not listen" << std::endl;
+        Logger::error("Could not listen");
         exit(1);
     }
 
     while (1) {
-        std::cout << "Accepting connections on port " << port << "..." << std::endl;
+        Logger::info("Accepting connections on port " + port + "...");
         addressLength = sizeof(struct sockaddr_in);
         int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
         if (clientSocketFD == -1) {
-            std::cerr << "Could not accept" << std::endl;
+            Logger::error("Could not accept");
             exit(1);
         }
 
-        std::cout << "Connection established" << std::endl;
+        Logger::success("Connection established");
 
         std::vector<std::string> lines;
         while (1) {
@@ -226,7 +223,7 @@ int main(int argc, char* argv[]) {
             std::string response = MessageUtils::toString(lines);
 
             if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
-                std::cerr << "Could not send" << std::endl;
+                Logger::error("Could not send");
                 exit(1);
             }
         }

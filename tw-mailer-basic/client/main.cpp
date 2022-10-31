@@ -13,16 +13,20 @@
 
 #include "command.h"
 #include "getoptUtils.h"
+#include "logger.h"
 #include "messageUtils.h"
 #include "usernameUtils.h"
 
 #define BUFFER 1024
 
+/**
+ * Send a mail to someone.
+ */
 void sendCommand(std::vector<std::string>& message) {
     std::string receiver;
     std::string subject;
     std::string content;
-    
+
     std::cout << "Receiver: ";
     std::cin >> receiver;
 
@@ -31,7 +35,7 @@ void sendCommand(std::vector<std::string>& message) {
     }
 
     std::cout << "Subject: ";
-    std::cin >> subject;
+    std::getline(std::cin >> std::ws, subject);
     std::cout << "Content: ";
     std::getline(std::cin >> std::ws, content);
 
@@ -44,12 +48,19 @@ void sendCommand(std::vector<std::string>& message) {
     message.push_back(".");
 }
 
+/**
+ * List all mails.
+ */
 void listCommand(std::vector<std::string>& message) {
     message.clear();
     message.push_back("LIST");
     message.push_back(UsernameUtils::username);
 }
 
+/**
+ * Access a mail.
+ * @param command the command to execute
+ */
 void accessCommand(std::string command, std::vector<std::string>& message) {
     int messageNumber;
 
@@ -62,18 +73,37 @@ void accessCommand(std::string command, std::vector<std::string>& message) {
     message.push_back(std::to_string(messageNumber));
 }
 
+/**
+ * Read a mail.
+ */
 void readCommand(std::vector<std::string>& message) {
     accessCommand("READ", message);
 }
 
+/**
+ * Delete a mail.
+ */
 void deleteCommand(std::vector<std::string>& message) {
     accessCommand("DEL", message);
 }
 
+/**
+ * Quit the client.
+ */
 void quitCommand(std::vector<std::string>& message) {
     message.clear();
     message.push_back("QUIT");
 }
+
+/**
+ * Connect to the server.
+ * @param ip the server ip
+ * @param port the server port
+ * @throws invalid_argument if the port is invalid
+ */
+int connectToServer(std::string ip, std::string port);
+
+void usernameInput();
 
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
@@ -92,40 +122,30 @@ int main(int argc, char* argv[]) {
         std::cerr << e.what() << std::endl;
         exit(1);
     } catch (std::out_of_range& e) {
-        std::cerr << "ip or port missing" << std::endl;
+        Logger::error("ip or port missing");
+        exit(1);
     }
 
+    int socketFD;
     int size;
     char buffer[BUFFER];
-    struct sockaddr_in address;
 
-    int socketFD = socket(AF_INET, SOCK_STREAM, 0);
-    if (socketFD == -1) {
-        std::cerr << "Could not create socket" << std::endl;
+    try {
+        socketFD = connectToServer(ip, port);
+    } catch (std::invalid_argument& e) {
+        Logger::error("invalid port");
+        exit(1);
+    } catch (std::runtime_error& e) {
+        Logger::error(e.what());
         exit(1);
     }
 
-    memset(&address, 0, sizeof(address));
-    address.sin_family = AF_INET;
-    address.sin_port = htons(std::stoi(port));
-    inet_aton(ip.c_str(), &address.sin_addr);
+    Logger::success("Connection established");
+    usernameInput();
 
-    if (connect(socketFD, (struct sockaddr*) &address, sizeof(address)) == -1) {
-        std::cerr << "Could not connect" << std::endl;
-        exit(1);
-    }
-
-    std::cout << "Connection established" << std::endl;
-
-    do {
-        std::cout << "Username must match the regex " << UsernameUtils::regexString << std::endl;
-        std::cout << "Username: ";
-        std::cin >> UsernameUtils::username;
-    } while (!UsernameUtils::usernameIsValid(UsernameUtils::username));
-
-    std::cout << "Available commands:" << std::endl;
+    Logger::plain("Available commands:");
     for (auto command : commands) {
-        std::cout << command.first << " - " << command.second.getName() << ": " << command.second.getDescription() << std::endl;
+        Logger::plain(command.first + " - " + command.second.getName() + ": " + command.second.getDescription());
     }
 
     do {
@@ -141,7 +161,7 @@ int main(int argc, char* argv[]) {
             std::string message = MessageUtils::toString(lines);
 
             if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
-                std::cerr << "Could not send message" << std::endl;
+                Logger::error("Could not send message");
                 exit(1);
             }
 
@@ -157,11 +177,37 @@ int main(int argc, char* argv[]) {
                 std::cout << line << std::endl;
             }
         } catch (std::out_of_range& e) {
-            std::cerr << "Invalid command" << std::endl;
+            Logger::error("Invalid command");
         } catch (std::exception& e) {
-            std::cerr << e.what() << std::endl;
+            Logger::error(e.what());
         }
     } while (1);
+}
 
-    return 0;
+int connectToServer(std::string ip, std::string port) {
+    struct sockaddr_in address;
+    int socketFD = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (socketFD == -1) {
+        throw std::runtime_error("Could not create socket");
+    }
+
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_port = htons(std::stoi(port));
+    inet_aton(ip.c_str(), &address.sin_addr);
+
+    if (connect(socketFD, (struct sockaddr*) &address, sizeof(address)) == -1) {
+        throw std::runtime_error("Could not connect");
+    }
+
+    return socketFD;
+}
+
+void usernameInput() {
+    do {
+        Logger::plain("Username must match the regex " + UsernameUtils::regexString);
+        std::cout << "Username: ";
+        std::cin >> UsernameUtils::username;
+    } while (!UsernameUtils::usernameIsValid(UsernameUtils::username));
 }
