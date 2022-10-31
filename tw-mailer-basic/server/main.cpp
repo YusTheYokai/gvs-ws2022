@@ -25,7 +25,7 @@ std::string ERR = "ERR";
 
 std::string directoryName;
 
-void sendCommand(int clientSocketFD, std::vector<std::string>& message) {
+void sendCommand(std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
     fs::create_directory(directoryName + "/" + message[2]);
     std::string fileName = directoryName + "/" + message[2] + "/" + message[3];
@@ -38,7 +38,7 @@ void sendCommand(int clientSocketFD, std::vector<std::string>& message) {
     message.push_back(OK);
 }
 
-void listCommand(int clientSocketFD, std::vector<std::string>& message) {
+void listCommand(std::vector<std::string>& message) {
     int count = 0;
 
     message.clear();
@@ -56,7 +56,7 @@ void listCommand(int clientSocketFD, std::vector<std::string>& message) {
     message[0] = std::to_string(count);
 }
 
-void readCommand(int clientSocketFD, std::vector<std::string>& message) {
+void readCommand(std::vector<std::string>& message) {
     if (!fs::is_directory(directoryName + "/" + message[1])) {
         message.clear();
         message.push_back(ERR);
@@ -89,7 +89,7 @@ void readCommand(int clientSocketFD, std::vector<std::string>& message) {
     file.close();
 }
 
-void deleteCommand(int clientSocketFD, std::vector<std::string>& message) {
+void deleteCommand(std::vector<std::string>& message) {
     if (!fs::is_directory(directoryName + "/" + message[1])) {
         message.clear();
         message.push_back(ERR);
@@ -123,7 +123,7 @@ void deleteCommand(int clientSocketFD, std::vector<std::string>& message) {
     message.push_back(OK);
 }
 
-void quitCommand(int clientSocketFD, std::vector<std::string>& message) {
+void quitCommand(std::vector<std::string>& message) {
     exit(0);
 }
 
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
     commands.insert(std::pair<std::string, Command>("SEND", Command("", "", sendCommand)));
     commands.insert(std::pair<std::string, Command>("LIST", Command("", "", listCommand)));
     commands.insert(std::pair<std::string, Command>("READ", Command("", "", readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL", Command("", "", deleteCommand)));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "", deleteCommand)));
     commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
 
     int port;
@@ -212,7 +212,7 @@ int main(int argc, char* argv[]) {
         MessageUtils::parseMessage(buffer, size, lines);
 
         auto command = commands.at(lines[0]);
-        command.getCommand()(clientSocketFD, lines);
+        command.getCommand()(lines);
         std::string response = MessageUtils::toString(lines);
 
         if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {

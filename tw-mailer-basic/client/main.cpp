@@ -17,7 +17,7 @@
 
 #define BUFFER 1024
 
-void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
+void sendCommand(std::vector<std::string>& message) {
     std::string receiver;
     std::string subject;
     std::string content;
@@ -43,38 +43,33 @@ void sendCommand(int serverSocketFD, std::vector<std::string>& message) {
     message.push_back(".");
 }
 
-void listCommand(int serverSocketFD, std::vector<std::string>& message) {
+void listCommand(std::vector<std::string>& message) {
     message.clear();
     message.push_back("LIST");
     message.push_back(UsernameUtils::username);
 }
 
-// TODO: abstract read and delete
-void readCommand(int serverSocketFD, std::vector<std::string>& message) {
+void accessCommand(std::string command, std::vector<std::string>& message) {
     int messageNumber;
 
     std::cout << "Message number: ";
     std::cin >> messageNumber;
 
     message.clear();
-    message.push_back("READ");
+    message.push_back(command);
     message.push_back(UsernameUtils::username);
     message.push_back(std::to_string(messageNumber));
 }
 
-void deleteCommand(int serverSocketFD, std::vector<std::string>& message) {
-    int messageNumber;
-
-    std::cout << "Message number: ";
-    std::cin >> messageNumber;
-
-    message.clear();
-    message.push_back("DEL");
-    message.push_back(UsernameUtils::username);
-    message.push_back(std::to_string(messageNumber));
+void readCommand(std::vector<std::string>& message) {
+    accessCommand("READ", message);
 }
 
-void quitCommand(int serverSocketFD, std::vector<std::string>& message) {
+void deleteCommand(std::vector<std::string>& message) {
+    accessCommand("DEL", message);
+}
+
+void quitCommand(std::vector<std::string>& message) {
     message.clear();
     message.push_back("QUIT");
 }
@@ -84,7 +79,7 @@ int main(int argc, char* argv[]) {
     commands.insert(std::pair<std::string, Command>("SEND", Command("Send  ", "send a message",              sendCommand)));
     commands.insert(std::pair<std::string, Command>("LIST", Command("List  ", "list all messages of a user", listCommand)));
     commands.insert(std::pair<std::string, Command>("READ", Command("Read  ", "read a message",              readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL ", Command("Delete", "deletes a message",           deleteCommand)));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command("Delete", "deletes a message",           deleteCommand)));
     commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit  ", "quit the client",             quitCommand)));
 
     std::string ip;
@@ -154,7 +149,7 @@ int main(int argc, char* argv[]) {
 
         auto command = commands.at(selection);
         try {
-            command.getCommand()(socketFD, lines);
+            command.getCommand()(lines);
             std::string message = MessageUtils::toString(lines);
 
             if (send(socketFD, message.c_str(), message.length(), 0) == -1) {
