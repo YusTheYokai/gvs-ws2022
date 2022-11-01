@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
         Logger::error(e.what());
         exit(1);
     } catch (std::out_of_range& e) {
-        Logger::error("port or sppol directory name missing");
+        Logger::error("port or spool directory name missing");
         exit(1);
     }
 
