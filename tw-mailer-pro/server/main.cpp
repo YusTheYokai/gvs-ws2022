@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sstream>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
 
 #include "command.h"
@@ -25,6 +26,8 @@ namespace fs = std::filesystem;
 
 std::string OK = "OK";
 std::string ERR = "ERR";
+
+int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands);
 
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
@@ -159,9 +162,7 @@ int main(int argc, char* argv[]) {
     fs::create_directory(directoryName);
 
     int reuseValue = 1;
-    int size;
-    char buffer[BUFFER];
-    socklen_t addressLength;
+    socklen_t addressLength = sizeof(struct sockaddr_in);
     struct sockaddr_in address;
     struct sockaddr_in clientAddress;
 
@@ -192,40 +193,53 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
+    Logger::info("Accepting connections on port " + port + "...");
+
+    std::vector<std::thread> threads;
+
     while (1) {
-        Logger::info("Accepting connections on port " + port + "...");
-        addressLength = sizeof(struct sockaddr_in);
         int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
-        if (clientSocketFD == -1) {
-            Logger::error("Could not accept");
-            exit(1);
+        std::cout << "Hier" << std::endl;
+        threads.push_back(std::thread(clientCommunication, clientSocketFD, std::ref(commands)));
+        std::cout << "Danach" << std::endl;
+    }
+}
+
+int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands) {
+    std::cout << "bin drin" << std::endl;
+    if (clientSocketFD == -1) {
+        Logger::error("Could not accept");
+        exit(1);
+    }
+
+    Logger::success("Connection established");
+
+    int size;
+    char buffer[BUFFER];
+    std::vector<std::string> lines;
+
+    while (1) {
+        size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
+        MessageUtils::validateMessage(size);
+        MessageUtils::parseMessage(buffer, size, lines);
+
+        try {
+            auto command = commands.at(lines[0]);
+            command.getCommand()(lines);
+        } catch (std::out_of_range& e) {
+            lines.clear();
+            lines.push_back(ERR);
+            lines.push_back("Unknown command");
+        } catch (std::runtime_error& e) {
+            break;
         }
 
-        Logger::success("Connection established");
+        std::string response = MessageUtils::toString(lines);
 
-        std::vector<std::string> lines;
-        while (1) {
-            size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
-            MessageUtils::validateMessage(size);
-            MessageUtils::parseMessage(buffer, size, lines);
-
-            try {
-                auto command = commands.at(lines[0]);
-                command.getCommand()(lines);
-            } catch (std::out_of_range& e) {
-                lines.clear();
-                lines.push_back(ERR);
-                lines.push_back("Unknown command");
-            } catch (std::runtime_error& e) {
-                break;
-            }
-
-            std::string response = MessageUtils::toString(lines);
-
-            if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
-                Logger::error("Could not send");
-                exit(1);
-            }
+        if (send(clientSocketFD, response.c_str(), response.size(), 0) == -1) {
+            Logger::error("Could not send");
+            return 1;
         }
     }
+    return 0;
 }

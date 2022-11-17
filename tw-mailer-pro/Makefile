@@ -19,7 +19,7 @@ clean:
 
 build: folderStructure command.o getoptUtils.o logger.o messageUtils.o usernameUtils.o
 	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -I $(CLIENT_INCLUDE) -o $(OUT)/twmailer-client client/main.cpp $(GLOBAL_OBJECT) $(CLIENT_OBJECT)
-	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT)
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -pthread             -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT)
 
 folderStructure:
 	mkdir -p $(OUT)/object
