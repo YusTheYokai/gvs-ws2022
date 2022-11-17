@@ -3,14 +3,8 @@
 #include <iostream>
 #include <sstream>
 
-void MessageUtils::validateMessage(int size) {
-    if (size == -1) {
-        std::cerr << "Could not receive" << std::endl;
-        exit(1);
-    } else if (size == 0) {
-        std::cout << "Disconnected" << std::endl;
-        exit(1);
-    }
+bool MessageUtils::messageIsValid(int size) {
+    return size > 0;
 }
 
 void MessageUtils::parseMessage(char buffer[], int size, std::vector<std::string>& message) {

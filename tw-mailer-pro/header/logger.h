@@ -9,6 +9,7 @@ class Logger {
         static void plain(std::string message);
         static void info(std::string message);
         static void success(std::string message);
+        static void warn(std::string message);
         static void error(std::string message);
 
     private:

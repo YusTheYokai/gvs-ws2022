@@ -27,11 +27,15 @@ void sendCommand(std::vector<std::string>& message) {
     std::string subject;
     std::string content;
 
-    std::cout << "Receiver: ";
+    std::cout << "Receiver (this can be multiple, seperated by comma):" << std::endl << ">> ";
     std::cin >> receiver;
 
-    if (!UsernameUtils::usernameIsValid(receiver)) {
-        throw std::invalid_argument("Invalid receiver username");
+    std::stringstream ss(receiver);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        if (!UsernameUtils::usernameIsValid(token)) {
+            throw std::invalid_argument("Invalid receiver username: " + token);
+        }
     }
 
     std::cout << "Subject: ";
@@ -170,7 +174,12 @@ int main(int argc, char* argv[]) {
             }
 
             size = recv(socketFD, buffer, BUFFER, 0);
-            MessageUtils::validateMessage(size);
+
+            if (!MessageUtils::messageIsValid(size)) {
+                Logger::error("Server has closed the connection unexpectedly");
+                exit(1);
+            }
+
             MessageUtils::parseMessage(buffer, size, lines);
 
             for (auto line : lines) {

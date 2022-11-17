@@ -33,15 +33,18 @@ int clientCommunication(int clientSocketFD, std::map<std::string, Command>& comm
 
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
-    fs::create_directory(directoryName + "/" + message[2]);
-
     auto timeSinceEpoch = chrono::system_clock::now().time_since_epoch();
     auto timeInMillis = chrono::duration_cast<chrono::milliseconds>(timeSinceEpoch).count();
-    std::string fileName = directoryName + "/" + message[2] + "/" + std::to_string(timeInMillis);
 
-    std::ofstream file(fileName);
-    file << message[1] << std::endl << message[3] << std::endl << message[4];
-    file.close();
+    std::stringstream ss(message[2]);
+    std::string receiver;
+    while (std::getline(ss, receiver, ',')) {
+        fs::create_directory(directoryName + "/" + receiver);
+        std::string fileName = directoryName + "/" + receiver + "/" + std::to_string(timeInMillis);
+        std::ofstream file(fileName);
+        file << message[1] << std::endl << message[3] << std::endl << message[4];
+        file.close();
+    }
 
     message.clear();
     message.push_back(OK);
@@ -210,14 +213,11 @@ int main(int argc, char* argv[]) {
 
     while (1) {
         int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
-        std::cout << "Hier" << std::endl;
         threads.push_back(std::thread(clientCommunication, clientSocketFD, std::ref(commands)));
-        std::cout << "Danach" << std::endl;
     }
 }
 
 int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands) {
-    std::cout << "bin drin" << std::endl;
     if (clientSocketFD == -1) {
         Logger::error("Could not accept");
         exit(1);
@@ -231,7 +231,12 @@ int clientCommunication(int clientSocketFD, std::map<std::string, Command>& comm
 
     while (1) {
         size = recv(clientSocketFD, buffer, BUFFER - 1, 0);
-        MessageUtils::validateMessage(size);
+
+        if (!MessageUtils::messageIsValid(size)) {
+            Logger::warn("Client has disconnected abruptly");
+            return 1;
+        }
+
         MessageUtils::parseMessage(buffer, size, lines);
 
         try {

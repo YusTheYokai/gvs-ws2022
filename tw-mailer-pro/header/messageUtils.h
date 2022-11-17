@@ -13,10 +13,10 @@ class MessageUtils {
 
         /**
          * Validates a message received from a socket.
-         * Will exit the program if the message is invalid.
          * @param size the size of the message
+         * @return true if the message is valid, false otherwise
          */
-        static void validateMessage(int size);
+        static bool messageIsValid(int size);
 
         /**
          * Parses a message received from a socket.
