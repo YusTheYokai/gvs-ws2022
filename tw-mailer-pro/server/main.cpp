@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <arpa/inet.h>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -21,6 +22,7 @@
 #include "messageUtils.h"
 
 namespace fs = std::filesystem;
+namespace chrono = std::chrono;
 
 #define BUFFER 1024
 
@@ -32,7 +34,10 @@ int clientCommunication(int clientSocketFD, std::map<std::string, Command>& comm
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
     fs::create_directory(directoryName + "/" + message[2]);
-    std::string fileName = directoryName + "/" + message[2] + "/" + message[3];
+
+    auto timeSinceEpoch = chrono::system_clock::now().time_since_epoch();
+    auto timeInMillis = chrono::duration_cast<chrono::milliseconds>(timeSinceEpoch).count();
+    std::string fileName = directoryName + "/" + message[2] + "/" + std::to_string(timeInMillis);
 
     std::ofstream file(fileName);
     file << message[1] << std::endl << message[3] << std::endl << message[4];
@@ -47,17 +52,23 @@ void listCommand(std::string directoryName, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("");
-    
+
     try {
         fs::directory_iterator dir(directoryName + "/" + message[1]);
         for (auto file : dir) {
-            message.push_back(file.path().filename());
+            std::ifstream filestream(file.path());
+            std::string sender;
+            std::getline(filestream, sender);
+            std::string subject;
+            std::getline(filestream, subject);
+            message.push_back("(" + std::to_string(count) + ") From: " + sender + " - " + subject);
+            filestream.close();
             count++;
         }
     } catch (fs::filesystem_error& e) {
         // noop
     }
-    message[0] = std::to_string(count);
+    message[0] = "Total messages: " + std::to_string(count);
 }
 
 void readCommand(std::string directoryName, std::vector<std::string>& message) {

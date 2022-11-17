@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string.h>
 
+namespace chrono = std::chrono;
+
 void Logger::plain(std::string message) {
     std::cout << message << std::endl;
 }
@@ -22,8 +24,8 @@ void Logger::success(std::string message) {
 }
 
 std::string Logger::time() {
-    auto now = std::chrono::system_clock::now();
-    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    auto now = chrono::system_clock::now();
+    auto in_time_t = chrono::system_clock::to_time_t(now);
     char* time = std::ctime(&in_time_t);
     time[strlen(time) - 1] = '\0';
     return time;
