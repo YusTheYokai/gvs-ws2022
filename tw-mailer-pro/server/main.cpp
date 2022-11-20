@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <ldap.h>
 #include <list>
 #include <map>
 #include <netinet/in.h>
