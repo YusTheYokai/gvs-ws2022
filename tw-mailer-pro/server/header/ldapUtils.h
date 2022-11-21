@@ -1,6 +1,7 @@
 #ifndef LDAPUTILS
 #define LDAPUTILS
 
+#include <ldap.h>
 #include <string>
 
 class LdapUtils {
@@ -10,6 +11,7 @@ class LdapUtils {
         static std::string base;
         static ber_int_t scope;
         static std::string filter;
+        static std::string usernameSuffix;
 
         static std::string username;
         static std::string password;

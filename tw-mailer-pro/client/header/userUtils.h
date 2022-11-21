@@ -1,16 +1,19 @@
-#ifndef USERNAMEUTILS
-#define USERNAMEUTILS
+#ifndef USERUTILS
+#define USERUTILS
 
 #include <string>
 #include <regex>
 
 /**
- * Utility class for username handling.
+ * Utility class for user handling.
  */
-class UsernameUtils {
+class UserUtils {
 
     public:
         static std::string username;
+        static std::string password;
+        static bool authenticated;
+
         static std::string regexString;
         static std::regex regex;
 
@@ -22,4 +25,4 @@ class UsernameUtils {
         static bool usernameIsValid(std::string username);
 };
 
-#endif // USERNAMEUTILS
+#endif // USERUTILS

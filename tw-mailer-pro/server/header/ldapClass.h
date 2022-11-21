@@ -1,7 +1,5 @@
 #ifndef LDAPCLASS
 #define LDAPCLASS
-#ifndef LDAP_CLASS
-#define LDAP_CLASS
 
 #include <ldap.h>
 #include <string>
@@ -14,7 +12,8 @@ class Ldap {
         void connect();
         void setProtocolVersion(int ldapVersion);
         void startTls();
-        void bind(std::string username, std::string password);
+        void bind(std::string username, std::string usernameSuffix, std::string password);
+        bool checkPassword(std::string username, std::string password);
 
     private:
         std::string uri;
@@ -23,15 +22,10 @@ class Ldap {
         std::string filter;
 
         LDAP* ldap;
-        LDAPMessage* result;
-        LDAPMessage* error;
         BerElement* ber;
         char* attribute;
         BerValue** values;
         BerValue *servercredp;
 };
-
-#endif // LDAP
-
 
 #endif // LDAPCLASS

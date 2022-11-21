@@ -15,9 +15,29 @@
 #include "getoptUtils.h"
 #include "logger.h"
 #include "messageUtils.h"
-#include "usernameUtils.h"
+#include "userUtils.h"
 
 #define BUFFER 1024
+
+/**
+ * Login
+ */
+void loginCommand(std::vector<std::string>& message) {
+    std::string username;
+    std::string password;
+
+    do {
+        Logger::plain("Username must match the regex " + UserUtils::regexString);
+        std::cout << "Username: ";
+        std::cin >> username;
+        password = getpass("Password: ");
+    } while (!UserUtils::usernameIsValid(username));
+
+    message.clear();
+    message.push_back("LOGIN");
+    message.push_back(username);
+    message.push_back(password);
+}
 
 /**
  * Send a mail to someone.
@@ -33,7 +53,7 @@ void sendCommand(std::vector<std::string>& message) {
     std::stringstream ss(receiver);
     std::string token;
     while (std::getline(ss, token, ',')) {
-        if (!UsernameUtils::usernameIsValid(token)) {
+        if (!UserUtils::usernameIsValid(token)) {
             throw std::invalid_argument("Invalid receiver username: " + token);
         }
     }
@@ -45,7 +65,7 @@ void sendCommand(std::vector<std::string>& message) {
 
     message.clear();
     message.push_back("SEND");
-    message.push_back(UsernameUtils::username);
+    message.push_back(UserUtils::username);
     message.push_back(receiver);
     message.push_back(subject);
     message.push_back(content);
@@ -58,7 +78,7 @@ void sendCommand(std::vector<std::string>& message) {
 void listCommand(std::vector<std::string>& message) {
     message.clear();
     message.push_back("LIST");
-    message.push_back(UsernameUtils::username);
+    message.push_back(UserUtils::username);
 }
 
 /**
@@ -73,7 +93,7 @@ void accessCommand(std::string command, std::vector<std::string>& message) {
 
     message.clear();
     message.push_back(command);
-    message.push_back(UsernameUtils::username);
+    message.push_back(UserUtils::username);
     message.push_back(std::to_string(messageNumber));
 }
 
@@ -107,15 +127,14 @@ void quitCommand(std::vector<std::string>& message) {
  */
 int connectToServer(std::string ip, std::string port);
 
-void usernameInput();
-
 int main(int argc, char* argv[]) {
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("Send  ", "send a message",              sendCommand)));
-    commands.insert(std::pair<std::string, Command>("LIST", Command("List  ", "list all messages of a user", listCommand)));
-    commands.insert(std::pair<std::string, Command>("READ", Command("Read  ", "read a message",              readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL" , Command("Delete", "deletes a message",           deleteCommand)));
-    commands.insert(std::pair<std::string, Command>("QUIT", Command("Quit  ", "quit the client",             quitCommand)));
+    commands.insert(std::pair<std::string, Command>("LOGIN", Command("Login ", "log in",                      loginCommand)));
+    commands.insert(std::pair<std::string, Command>("SEND" , Command("Send  ", "send a message",              sendCommand)));
+    commands.insert(std::pair<std::string, Command>("LIST" , Command("List  ", "list all messages of a user", listCommand)));
+    commands.insert(std::pair<std::string, Command>("READ" , Command("Read  ", "read a message",              readCommand)));
+    commands.insert(std::pair<std::string, Command>("DEL"  , Command("Delete", "deletes a message",           deleteCommand)));
+    commands.insert(std::pair<std::string, Command>("QUIT" , Command("Quit  ", "quit the client",             quitCommand)));
 
     std::string ip;
     std::string port;
@@ -145,7 +164,6 @@ int main(int argc, char* argv[]) {
     }
 
     Logger::success("Connection established");
-    usernameInput();
 
     Logger::plain("Available commands:");
     for (auto command : commands) {
@@ -211,12 +229,4 @@ int connectToServer(std::string ip, std::string port) {
     }
 
     return socketFD;
-}
-
-void usernameInput() {
-    do {
-        Logger::plain("Username must match the regex " + UsernameUtils::regexString);
-        std::cout << "Username: ";
-        std::cin >> UsernameUtils::username;
-    } while (!UsernameUtils::usernameIsValid(UsernameUtils::username));
 }

@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <ldap.h>
 #include <list>
 #include <map>
 #include <netinet/in.h>
@@ -19,6 +18,8 @@
 
 #include "command.h"
 #include "getoptUtils.h"
+#include "ldapClass.h"
+#include "ldapUtils.h"
 #include "logger.h"
 #include "messageUtils.h"
 
@@ -31,6 +32,21 @@ std::string OK = "OK";
 std::string ERR = "ERR";
 
 int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands);
+
+void loginCommand(Ldap ldap, std::vector<std::string>& message) {
+    // 0 = command, 1 = username, 2 = password
+    try {
+        bool success = ldap.checkPassword(message[1], message[2]);
+        if (success) {
+            Logger::info(message[1] + " successfully logged in");
+        } else {
+            Logger::info(message[1] + " failed to login");
+        }
+    } catch (std::runtime_error &e) {
+        Logger::error(e.what());
+        exit(1);
+    }
+}
 
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
     // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
@@ -153,17 +169,6 @@ int main(int argc, char* argv[]) {
     std::string port;
     std::string directoryName;
 
-    std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("SEND", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("LIST", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("READ", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
-
     try {
         GetoptUtils::parseArguments(port, directoryName, argc, argv);
     } catch (std::invalid_argument& e) {
@@ -175,6 +180,30 @@ int main(int argc, char* argv[]) {
     }
 
     fs::create_directory(directoryName);
+
+    Ldap ldap(LdapUtils::uri, LdapUtils::base, LdapUtils::scope, LdapUtils::filter);
+    try {
+        ldap.connect();
+        ldap.setProtocolVersion(LDAP_VERSION3);
+        ldap.startTls();
+        ldap.bind(LdapUtils::username, LdapUtils::usernameSuffix, LdapUtils::password);
+    } catch (std::runtime_error& e) {
+        Logger::error(e.what());
+        exit(1);
+    }
+
+    std::map<std::string, Command> commands;
+    commands.insert(std::pair<std::string, Command>("LOGIN", Command("", "",
+            [&ldap] (std::vector<std::string>& message) { loginCommand(ldap, message); })));
+    commands.insert(std::pair<std::string, Command>("SEND", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("LIST", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("READ", Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "",
+            [&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
 
     int reuseValue = 1;
     socklen_t addressLength = sizeof(struct sockaddr_in);

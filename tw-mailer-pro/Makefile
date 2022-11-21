@@ -6,9 +6,10 @@ GLOBAL_INCLUDE = header
 GLOBAL_OBJECT  = $(OUT)/object/command.o $(OUT)/object/messageUtils.o $(OUT)/object/getoptUtils.o $(OUT)/object/logger.o
 
 CLIENT_INCLUDE = client/header
-CLIENT_OBJECT  = $(OUT)/object/usernameUtils.o
+CLIENT_OBJECT  = $(OUT)/object/userUtils.o
 
-
+SERVER_INCLUDE = server/header
+SERVER_OBJECT  = $(OUT)/object/ldapClass.o $(OUT)/object/ldapUtils.o
 
 default: all
 
@@ -17,24 +18,30 @@ all: clean build
 clean:
 	rm -rf $(OUT)
 
-build: folderStructure command.o getoptUtils.o logger.o messageUtils.o usernameUtils.o
+build: folderStructure command.o getoptUtils.o ldapClass.o ldapUtils.o logger.o messageUtils.o userUtils.o
 	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -I $(CLIENT_INCLUDE) -o $(OUT)/twmailer-client client/main.cpp $(GLOBAL_OBJECT) $(CLIENT_OBJECT)
-	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -pthread             -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT)
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -I $(SERVER_INCLUDE) -o $(OUT)/twmailer-server server/main.cpp $(GLOBAL_OBJECT) $(SERVER_OBJECT) -pthread -lldap -llber
 
 folderStructure:
 	mkdir -p $(OUT)/object
 
 command.o:
-	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/command.o       -c src/command.cpp
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/object/command.o       -c src/command.cpp
 
 getoptUtils.o:
-	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/getoptUtils.o   -c src/getoptUtils.cpp
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/object/getoptUtils.o   -c src/getoptUtils.cpp
+
+ldapClass.o:
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE) -I $(SERVER_INCLUDE) -o $(OUT)/object/ldapClass.o     -c server/src/ldapClass.cpp
+
+ldapUtils.o:
+	$(CC) $(CFLAGS) -I $(SERVER_INCLUDE)                      -o $(OUT)/object/ldapUtils.o     -c server/src/ldapUtils.cpp
 
 logger.o:
-	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/logger.o        -c src/logger.cpp
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/object/logger.o        -c src/logger.cpp
 
 messageUtils.o:
-	$(CC) $(CFLAGS) -I header        -o $(OUT)/object/messageUtils.o  -c src/messageUtils.cpp
+	$(CC) $(CFLAGS) -I $(GLOBAL_INCLUDE)                      -o $(OUT)/object/messageUtils.o  -c src/messageUtils.cpp
 
-usernameUtils.o:
-	$(CC) $(CFLAGS) -I client/header -o $(OUT)/object/usernameUtils.o -c client/src/usernameUtils.cpp
+userUtils.o:
+	$(CC) $(CFLAGS) -I $(CLIENT_INCLUDE)                      -o $(OUT)/object/userUtils.o -c client/src/userUtils.cpp
