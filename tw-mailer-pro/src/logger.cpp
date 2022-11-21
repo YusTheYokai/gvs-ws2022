@@ -12,15 +12,15 @@ void Logger::plain(std::string message) {
 }
 
 void Logger::info(std::string message) {
-    std::cout << time() << " - " << "[INFO]    " << message << std::endl;
+    std::cout << time() << " - " << "[ INFO  ] " << message << std::endl;
 }
 
 void Logger::warn(std::string message) {
-    std::cout << "\033[1;33m" << time() << " - " << "[WARN]    " << message << "\033[0m" << std::endl;
+    std::cout << "\033[1;33m" << time() << " - " << "[WARNING] " << message << "\033[0m" << std::endl;
 }
 
 void Logger::error(std::string message) {
-    std::cerr << "\033[1;31m" << time() << " - " << "[ERROR]   " << message << "\033[0m" << std::endl;
+    std::cerr << "\033[1;31m" << time() << " - " << "[ ERROR ] " << message << "\033[0m" << std::endl;
 }
 
 void Logger::success(std::string message) {

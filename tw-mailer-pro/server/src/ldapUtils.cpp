@@ -7,6 +7,3 @@ std::string LdapUtils::base = "dc=technikum-wien,dc=at";
 ber_int_t LdapUtils::scope = LDAP_SCOPE_SUBTREE;
 std::string LdapUtils::filter = "(uid=if21b*)";
 std::string LdapUtils::usernameSuffix = ",ou=people,dc=technikum-wien,dc=at";
-
-std::string LdapUtils::username = "";
-std::string LdapUtils::password = "";

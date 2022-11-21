@@ -11,15 +11,10 @@
 class Command {
 
     public:
-        Command(std::string name, std::string description, std::function<void(std::vector<std::string>&)> command);
-
-        std::string getName();
-        std::string getDescription();
+        Command(std::function<void(std::vector<std::string>&)> command);
         std::function<void(std::vector<std::string>&)> getCommand();
 
     private:
-        std::string name;
-        std::string description;
         std::function<void(std::vector<std::string>&)> command;
 };
 

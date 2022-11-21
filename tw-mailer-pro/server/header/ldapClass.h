@@ -12,8 +12,7 @@ class Ldap {
         void connect();
         void setProtocolVersion(int ldapVersion);
         void startTls();
-        void bind(std::string username, std::string usernameSuffix, std::string password);
-        bool checkPassword(std::string username, std::string password);
+        bool bind(std::string username, std::string usernameSuffix, std::string password);
 
     private:
         std::string uri;
@@ -22,10 +21,6 @@ class Ldap {
         std::string filter;
 
         LDAP* ldap;
-        BerElement* ber;
-        char* attribute;
-        BerValue** values;
-        BerValue *servercredp;
 };
 
 #endif // LDAPCLASS

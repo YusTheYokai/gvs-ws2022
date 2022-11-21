@@ -36,11 +36,15 @@ int clientCommunication(int clientSocketFD, std::map<std::string, Command>& comm
 void loginCommand(Ldap ldap, std::vector<std::string>& message) {
     // 0 = command, 1 = username, 2 = password
     try {
-        bool success = ldap.checkPassword(message[1], message[2]);
+        bool success = ldap.bind(message[1], LdapUtils::usernameSuffix, message[2]);
+        message.clear();
+
         if (success) {
             Logger::info(message[1] + " successfully logged in");
+            message.push_back(OK);
         } else {
             Logger::info(message[1] + " failed to login");
+            message.push_back(ERR);
         }
     } catch (std::runtime_error &e) {
         Logger::error(e.what());
@@ -186,24 +190,18 @@ int main(int argc, char* argv[]) {
         ldap.connect();
         ldap.setProtocolVersion(LDAP_VERSION3);
         ldap.startTls();
-        ldap.bind(LdapUtils::username, LdapUtils::usernameSuffix, LdapUtils::password);
     } catch (std::runtime_error& e) {
         Logger::error(e.what());
         exit(1);
     }
 
     std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("LOGIN", Command("", "",
-            [&ldap] (std::vector<std::string>& message) { loginCommand(ldap, message); })));
-    commands.insert(std::pair<std::string, Command>("SEND", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("LIST", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("READ", Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("DEL" , Command("", "",
-            [&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("QUIT", Command("", "", quitCommand)));
+    commands.insert(std::pair<std::string, Command>("LOGIN", Command([&ldap] (std::vector<std::string>& message) { loginCommand(ldap, message); })));
+    commands.insert(std::pair<std::string, Command>("SEND", Command([&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("LIST", Command([&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("READ", Command([&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command([&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command(quitCommand)));
 
     int reuseValue = 1;
     socklen_t addressLength = sizeof(struct sockaddr_in);

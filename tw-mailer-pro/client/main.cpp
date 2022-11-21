@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "command.h"
+#include "clientCommand.h"
 #include "getoptUtils.h"
 #include "logger.h"
 #include "messageUtils.h"
@@ -19,24 +19,47 @@
 
 #define BUFFER 1024
 
+std::string OK = "OK";
+std::string ERR = "ERR";
+
 /**
- * Login
+ * Connect to the server.
+ * @param ip the server ip
+ * @param port the server port
+ * @throws invalid_argument if the port is invalid
  */
+int connectToServer(std::string ip, std::string port);
+
+/**
+ * Prints all commands available to the user right now.
+ * @param commands the commands to print
+ */
+void printAvailableCommands(std::map<std::string, ClientCommand> commands);
+
 void loginCommand(std::vector<std::string>& message) {
-    std::string username;
     std::string password;
 
     do {
         Logger::plain("Username must match the regex " + UserUtils::regexString);
         std::cout << "Username: ";
-        std::cin >> username;
+        std::cin >> UserUtils::username;
         password = getpass("Password: ");
-    } while (!UserUtils::usernameIsValid(username));
+    } while (!UserUtils::usernameIsValid(UserUtils::username));
 
     message.clear();
     message.push_back("LOGIN");
-    message.push_back(username);
+    message.push_back(UserUtils::username);
     message.push_back(password);
+}
+
+void loginCallback(std::vector<std::string>& message, std::map<std::string, ClientCommand> commands) {
+    if (message[0].compare(OK) == 0) {
+        Logger::success("Logged in successfully");
+        UserUtils::authenticated = true;
+        printAvailableCommands(commands);
+    } else {
+        Logger::error("Login failed");
+    }
 }
 
 /**
@@ -58,9 +81,10 @@ void sendCommand(std::vector<std::string>& message) {
         }
     }
 
-    std::cout << "Subject: ";
+    std::cout << "Subject:" << std::endl << ">> ";
     std::getline(std::cin >> std::ws, subject);
-    std::cout << "Content: ";
+    std::cout << "Content:" << std::endl << ">> ";
+    // TODO: Content can be multiple lines
     std::getline(std::cin >> std::ws, content);
 
     message.clear();
@@ -82,13 +106,22 @@ void listCommand(std::vector<std::string>& message) {
 }
 
 /**
+ * Callback for list command. Prints all mails.
+ */
+void listCallback(std::vector<std::string>& message) {
+    for (auto line : message) {
+        Logger::plain(line);
+    }
+}
+
+/**
  * Access a mail.
  * @param command the command to execute
  */
 void accessCommand(std::string command, std::vector<std::string>& message) {
     int messageNumber;
 
-    std::cout << "Message number: ";
+    std::cout << "Message number:" << std::endl << ">> " ;
     std::cin >> messageNumber;
 
     message.clear();
@@ -102,6 +135,13 @@ void accessCommand(std::string command, std::vector<std::string>& message) {
  */
 void readCommand(std::vector<std::string>& message) {
     accessCommand("READ", message);
+}
+
+void readCallback(std::vector<std::string>& message) {
+    // 0 = code, 1 = sender, 2 = subject, 3 = content
+    Logger::plain("| From: " + message[1]);
+    Logger::plain("| Subject: " + message[2] + "\n|");
+    Logger::plain("| Content: " + message[3]);
 }
 
 /**
@@ -119,22 +159,22 @@ void quitCommand(std::vector<std::string>& message) {
     message.push_back("QUIT");
 }
 
-/**
- * Connect to the server.
- * @param ip the server ip
- * @param port the server port
- * @throws invalid_argument if the port is invalid
- */
-int connectToServer(std::string ip, std::string port);
+void defaultCallback(std::vector<std::string>& message) {
+    if (message[0].compare(OK) == 0) {
+        Logger::success("Success");
+    } else {
+        Logger::error("Error");
+    }
+}
 
 int main(int argc, char* argv[]) {
-    std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("LOGIN", Command("Login ", "log in",                      loginCommand)));
-    commands.insert(std::pair<std::string, Command>("SEND" , Command("Send  ", "send a message",              sendCommand)));
-    commands.insert(std::pair<std::string, Command>("LIST" , Command("List  ", "list all messages of a user", listCommand)));
-    commands.insert(std::pair<std::string, Command>("READ" , Command("Read  ", "read a message",              readCommand)));
-    commands.insert(std::pair<std::string, Command>("DEL"  , Command("Delete", "deletes a message",           deleteCommand)));
-    commands.insert(std::pair<std::string, Command>("QUIT" , Command("Quit  ", "quit the client",             quitCommand)));
+    std::map<std::string, ClientCommand> commands;
+    commands.insert(std::pair<std::string, ClientCommand>("LOGIN", ClientCommand("Login ", "Log in via LDAP",    false, loginCommand,  [&commands] (std::vector<std::string>& message) { loginCallback(message, commands); })));
+    commands.insert(std::pair<std::string, ClientCommand>("SEND" , ClientCommand("Send  ", "Send a message",     true,  sendCommand,   defaultCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("LIST" , ClientCommand("List  ", "List your messages", true,  listCommand,   listCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("READ" , ClientCommand("Read  ", "Read a message",     true,  readCommand,   readCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("DEL"  , ClientCommand("Delete", "Delete a message",   true,  deleteCommand, defaultCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("QUIT" , ClientCommand("Quit  ", "Quit the client",    false, quitCommand,   NULL)));
 
     std::string ip;
     std::string port;
@@ -164,21 +204,21 @@ int main(int argc, char* argv[]) {
     }
 
     Logger::success("Connection established");
-
-    Logger::plain("Available commands:");
-    for (auto command : commands) {
-        Logger::plain(command.first + " - " + command.second.getName() + ": " + command.second.getDescription());
-    }
+    printAvailableCommands(commands);
 
     do {
         std::vector<std::string> lines;
         std::string selection;
 
-        std::cout << "Please enter a command: ";
+        std::cout << "Please enter a command:" << std::endl << ">> ";
         std::cin >> selection;
 
         try {
             auto command = commands.at(selection);
+            if (command.getRequiresAuthentication() && !UserUtils::authenticated) {
+                throw std::runtime_error("You need to be authenticated to use this command");
+            }
+
             command.getCommand()(lines);
             std::string message = MessageUtils::toString(lines);
 
@@ -199,10 +239,7 @@ int main(int argc, char* argv[]) {
             }
 
             MessageUtils::parseMessage(buffer, size, lines);
-
-            for (auto line : lines) {
-                std::cout << line << std::endl;
-            }
+            command.getCallback()(lines);
         } catch (std::out_of_range& e) {
             Logger::error("Invalid command");
         } catch (std::exception& e) {
@@ -229,4 +266,13 @@ int connectToServer(std::string ip, std::string port) {
     }
 
     return socketFD;
+}
+
+void printAvailableCommands(std::map<std::string, ClientCommand> commands) {
+    Logger::plain("Available commands:");
+    for (auto command : commands) {
+        if (!command.second.getRequiresAuthentication() || UserUtils::authenticated) {
+            Logger::plain(command.first + " - " + command.second.getName() + ": " + command.second.getDescription());
+        }
+    }
 }

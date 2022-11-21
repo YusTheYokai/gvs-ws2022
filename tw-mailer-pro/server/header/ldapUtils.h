@@ -12,9 +12,6 @@ class LdapUtils {
         static ber_int_t scope;
         static std::string filter;
         static std::string usernameSuffix;
-
-        static std::string username;
-        static std::string password;
 };
 
 #endif // LDAPUTILS
