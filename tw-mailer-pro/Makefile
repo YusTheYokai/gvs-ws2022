@@ -1,5 +1,5 @@
 CC             = g++
-CFLAGS         = -std=c++17 -Wall
+CFLAGS         = -std=c++2a -Wall
 
 OUT            = build
 GLOBAL_INCLUDE = header

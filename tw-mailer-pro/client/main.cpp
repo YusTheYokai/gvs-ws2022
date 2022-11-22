@@ -53,12 +53,13 @@ void loginCommand(std::vector<std::string>& message) {
 }
 
 void loginCallback(std::vector<std::string>& message, std::map<std::string, ClientCommand> commands) {
+    // 0 = OK/ERR, 1 = message (if 0 == ERR)
     if (message[0].compare(OK) == 0) {
         Logger::success("Logged in successfully");
         UserUtils::authenticated = true;
         printAvailableCommands(commands);
     } else {
-        Logger::error("Login failed");
+        Logger::error(message[1]);
     }
 }
 
@@ -83,9 +84,8 @@ void sendCommand(std::vector<std::string>& message) {
 
     std::cout << "Subject:" << std::endl << ">> ";
     std::getline(std::cin >> std::ws, subject);
-    std::cout << "Content:" << std::endl << ">> ";
-    // TODO: Content can be multiple lines
-    std::getline(std::cin >> std::ws, content);
+    std::cout << "Content (this can be multi line, end with '\'):" << std::endl << ">> ";
+    std::getline(std::cin, content, '\\');
 
     message.clear();
     message.push_back("SEND");
@@ -138,10 +138,13 @@ void readCommand(std::vector<std::string>& message) {
 }
 
 void readCallback(std::vector<std::string>& message) {
-    // 0 = code, 1 = sender, 2 = subject, 3 = content
+    // 0 = code, 1 = sender, 2 = subject, 3+ = content
     Logger::plain("| From: " + message[1]);
     Logger::plain("| Subject: " + message[2] + "\n|");
-    Logger::plain("| Content: " + message[3]);
+
+    std::for_each(message.begin() + 3, message.end(), [] (std::string line) {
+        Logger::plain("| " + line);
+    });
 }
 
 /**
@@ -170,11 +173,11 @@ void defaultCallback(std::vector<std::string>& message) {
 int main(int argc, char* argv[]) {
     std::map<std::string, ClientCommand> commands;
     commands.insert(std::pair<std::string, ClientCommand>("LOGIN", ClientCommand("Login ", "Log in via LDAP",    false, loginCommand,  [&commands] (std::vector<std::string>& message) { loginCallback(message, commands); })));
-    commands.insert(std::pair<std::string, ClientCommand>("SEND" , ClientCommand("Send  ", "Send a message",     true,  sendCommand,   defaultCallback)));
-    commands.insert(std::pair<std::string, ClientCommand>("LIST" , ClientCommand("List  ", "List your messages", true,  listCommand,   listCallback)));
-    commands.insert(std::pair<std::string, ClientCommand>("READ" , ClientCommand("Read  ", "Read a message",     true,  readCommand,   readCallback)));
-    commands.insert(std::pair<std::string, ClientCommand>("DEL"  , ClientCommand("Delete", "Delete a message",   true,  deleteCommand, defaultCallback)));
-    commands.insert(std::pair<std::string, ClientCommand>("QUIT" , ClientCommand("Quit  ", "Quit the client",    false, quitCommand,   NULL)));
+    commands.insert(std::pair<std::string, ClientCommand>("SEND" , ClientCommand(" Send  ", "Send a message",     true,  sendCommand,   defaultCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("LIST" , ClientCommand(" List  ", "List your messages", true,  listCommand,   listCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("READ" , ClientCommand(" Read  ", "Read a message",     true,  readCommand,   readCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("DEL"  , ClientCommand("  Delete", "Delete a message",   true,  deleteCommand, defaultCallback)));
+    commands.insert(std::pair<std::string, ClientCommand>("QUIT" , ClientCommand(" Quit  ", "Quit the client",    false, quitCommand,   NULL)));
 
     std::string ip;
     std::string port;

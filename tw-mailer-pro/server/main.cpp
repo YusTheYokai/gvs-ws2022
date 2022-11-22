@@ -31,10 +31,39 @@ namespace chrono = std::chrono;
 std::string OK = "OK";
 std::string ERR = "ERR";
 
-int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands);
+int clientCommunication(int clientSocketFD, sockaddr_in clientAddress, Ldap ldap, std::string directoryName);
 
-void loginCommand(Ldap ldap, std::vector<std::string>& message) {
+void loginCommand(sockaddr_in clientAddress, Ldap ldap, std::vector<std::string>& message) {
     // 0 = command, 1 = username, 2 = password
+
+    std::ifstream failedLoginsIn("failedLogins");
+    std::vector<std::string> entries;
+    std::string entry;
+    while (std::getline(failedLoginsIn, entry)) {
+        entries.push_back(entry);
+    }
+
+    std::string ip = inet_ntoa(clientAddress.sin_addr);
+    std::vector<long> timestamps;
+    for (std::string entry : entries) {
+        if (entry.starts_with(ip)) {
+            timestamps.push_back(std::stol(entry.substr(entry.find_first_of(',') + 1)));
+        }
+    }
+
+    std::sort(std::begin(timestamps), std::end(timestamps));
+    std::reverse(std::begin(timestamps), std::end(timestamps));
+
+    auto timeSinceEpoch = chrono::system_clock::now().time_since_epoch();
+    auto now = chrono::duration_cast<chrono::milliseconds>(timeSinceEpoch).count();
+
+    if (timestamps.size() >= 3 && timestamps[0] - timestamps[2] < 60000 && now - timestamps[0] < 60000) {
+        message.clear();
+        message.push_back(ERR);
+        message.push_back("Too many failed login attempts. Please try again later.");
+        return;
+    }
+
     try {
         bool success = ldap.bind(message[1], LdapUtils::usernameSuffix, message[2]);
         message.clear();
@@ -43,17 +72,22 @@ void loginCommand(Ldap ldap, std::vector<std::string>& message) {
             Logger::info(message[1] + " successfully logged in");
             message.push_back(OK);
         } else {
+            std::ofstream failedLoginsOut("failedLogins", std::ios::app);
+            failedLoginsOut << inet_ntoa(clientAddress.sin_addr) << "," << now << std::endl;
+            failedLoginsOut.close();
+
             Logger::info(message[1] + " failed to login");
             message.push_back(ERR);
+            message.push_back("Invalid username or password");
         }
-    } catch (std::runtime_error &e) {
+    } catch (std::runtime_error& e) {
         Logger::error(e.what());
         exit(1);
     }
 }
 
 void sendCommand(std::string directoryName, std::vector<std::string>& message) {
-    // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4 = content
+    // 0 = command, 1 = sender, 2 = receiver, 3 = subject, 4+ = content, last = .
     auto timeSinceEpoch = chrono::system_clock::now().time_since_epoch();
     auto timeInMillis = chrono::duration_cast<chrono::milliseconds>(timeSinceEpoch).count();
 
@@ -63,7 +97,10 @@ void sendCommand(std::string directoryName, std::vector<std::string>& message) {
         fs::create_directory(directoryName + "/" + receiver);
         std::string fileName = directoryName + "/" + receiver + "/" + std::to_string(timeInMillis);
         std::ofstream file(fileName);
-        file << message[1] << std::endl << message[3] << std::endl << message[4];
+        file << message[1] << std::endl << message[3] << std::endl;
+        std::for_each(std::begin(message) + 4, std::end(message) - 1, [&file] (std::string line) {
+            file << line << std::endl;
+        });
         file.close();
     }
 
@@ -195,14 +232,6 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    std::map<std::string, Command> commands;
-    commands.insert(std::pair<std::string, Command>("LOGIN", Command([&ldap] (std::vector<std::string>& message) { loginCommand(ldap, message); })));
-    commands.insert(std::pair<std::string, Command>("SEND", Command([&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("LIST", Command([&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("READ", Command([&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("DEL" , Command([&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
-    commands.insert(std::pair<std::string, Command>("QUIT", Command(quitCommand)));
-
     int reuseValue = 1;
     socklen_t addressLength = sizeof(struct sockaddr_in);
     struct sockaddr_in address;
@@ -241,17 +270,25 @@ int main(int argc, char* argv[]) {
 
     while (1) {
         int clientSocketFD = accept(socketFD, (struct sockaddr*) &clientAddress, &addressLength);
-        threads.push_back(std::thread(clientCommunication, clientSocketFD, std::ref(commands)));
+        threads.push_back(std::thread(clientCommunication, clientSocketFD, clientAddress, ldap, directoryName));
     }
 }
 
-int clientCommunication(int clientSocketFD, std::map<std::string, Command>& commands) {
+int clientCommunication(int clientSocketFD, sockaddr_in clientAddress, Ldap ldap, std::string directoryName) {
     if (clientSocketFD == -1) {
         Logger::error("Could not accept");
         exit(1);
     }
 
     Logger::success("Connection established");
+
+    std::map<std::string, Command> commands;
+    commands.insert(std::pair<std::string, Command>("LOGIN", Command([&clientAddress, &ldap] (std::vector<std::string>& message) { loginCommand(clientAddress, ldap, message); })));
+    commands.insert(std::pair<std::string, Command>("SEND", Command([&directoryName] (std::vector<std::string>& message) { sendCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("LIST", Command([&directoryName] (std::vector<std::string>& message) { listCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("READ", Command([&directoryName] (std::vector<std::string>& message) { readCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("DEL" , Command([&directoryName] (std::vector<std::string>& message) { deleteCommand(directoryName, message); })));
+    commands.insert(std::pair<std::string, Command>("QUIT", Command(quitCommand)));
 
     int size;
     char buffer[BUFFER];

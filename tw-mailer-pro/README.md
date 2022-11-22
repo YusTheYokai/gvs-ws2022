@@ -1,4 +1,4 @@
-# TW-Mailer-Basic
+# TW-Mailer-Pro
 ## Cient und Server Architektur
 
 Client und Server sind getrennte Programme, welche in diesem Projekt über eine shared library verfügen.
