@@ -84,7 +84,7 @@ void sendCommand(std::vector<std::string>& message) {
 
     std::cout << "Subject:" << std::endl << ">> ";
     std::getline(std::cin >> std::ws, subject);
-    std::cout << "Content (this can be multi line, end with '\'):" << std::endl << ">> ";
+    std::cout << "Content (this can be multi line, end with '\\'):" << std::endl << ">> ";
     std::getline(std::cin, content, '\\');
 
     message.clear();
